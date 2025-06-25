@@ -16,6 +16,8 @@ public class UserResponse {
     private Long id;
     private String username;
     private String email;
+    private String firstName;      // ADDED
+    private String lastName;       // ADDED
     private String role;
     private Set<String> roles;
     private LocalDateTime createdAt;

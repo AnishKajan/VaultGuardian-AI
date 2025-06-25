@@ -43,6 +43,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(authz -> authz
                 // Public endpoints - MUST be accessible without authentication
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/test/**").permitAll()  // ADD THIS LINE
                 .requestMatchers("/api/health/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/error").permitAll()
@@ -75,8 +76,14 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // More permissive CORS for development
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        // FIXED: Specific origins instead of wildcard
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+            "http://localhost:3000",
+            "https://*.vercel.app",
+            "https://vault-guardian-ai.vercel.app", // Replace with your actual Vercel URL
+            "https://vaultguardian-ai.onrender.com"
+        ));
+        
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);

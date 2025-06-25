@@ -285,5 +285,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 🚧 **Upcoming**: Advanced analytics, mobile app, enterprise features
 
 **VaultGuardian AI** - Protecting your documents with intelligent security 🛡️
-
-*Built with ❤️ using Spring Boot, React, PostgreSQL, and Hugging Face AI*

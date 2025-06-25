@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
 @Data
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
 public class DocumentSummaryDto {
     private Long id;
     private String filename;
+    private String originalFilename;    // ADDED
     private Long fileSize;
     private Document.DocumentStatus status;
     private Document.RiskLevel riskLevel;

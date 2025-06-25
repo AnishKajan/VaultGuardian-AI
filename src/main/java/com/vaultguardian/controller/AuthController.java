@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*", maxAge = 3600)
+// REMOVED: @CrossOrigin annotation - let SecurityConfig handle CORS
 public class AuthController {
     
     private final AuthenticationManager authenticationManager;
@@ -76,10 +76,16 @@ public class AuthController {
             // Generate JWT token
             String token = jwtTokenUtil.generateToken(userDetails);
             
+            // FIXED: Add missing fields that frontend expects
             LoginResponse response = LoginResponse.builder()
                 .token(token)
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .firstName(user.getFirstName()) // Add this
+                .lastName(user.getLastName())   // Add this
+                .roles(user.getRoles().stream() // Add this
+                    .map(User.Role::name)
+                    .collect(Collectors.toSet()))
                 .role(user.getPrimaryRole().name())
                 .expiresIn(86400L) // 24 hours in seconds
                 .build();
@@ -161,6 +167,8 @@ public class AuthController {
                 .id(savedUser.getId())
                 .username(savedUser.getUsername())
                 .email(savedUser.getEmail())
+                .firstName(savedUser.getFirstName()) // Add this
+                .lastName(savedUser.getLastName())   // Add this
                 .role(savedUser.getPrimaryRole().name())
                 .roles(savedUser.getRoles().stream()
                     .map(User.Role::name)
@@ -201,6 +209,8 @@ public class AuthController {
                 .id(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .firstName(user.getFirstName()) // Add this
+                .lastName(user.getLastName())   // Add this
                 .role(user.getPrimaryRole().name())
                 .roles(user.getRoles().stream()
                     .map(User.Role::name)

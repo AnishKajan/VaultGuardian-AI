@@ -20,19 +20,21 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.constraints.NotNull;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/documents")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"})
+// REMOVED: @CrossOrigin annotation - let SecurityConfig handle CORS globally
 public class DocumentController {
     
     private final DocumentService documentService;
     
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<DocumentResponseDto> uploadDocument(
+    public ResponseEntity<?> uploadDocument(
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal User currentUser) {
         
@@ -42,12 +44,20 @@ public class DocumentController {
         try {
             // Validate file
             if (file.isEmpty()) {
-                return ResponseEntity.badRequest().build();
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "Invalid File");
+                error.put("message", "File is empty");
+                error.put("errorCode", "INVALID_FILE_TYPE");
+                return ResponseEntity.badRequest().body(error);
             }
             
             // Check file size (50MB limit)
             if (file.getSize() > 50 * 1024 * 1024) {
-                return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).build();
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "File Too Large");
+                error.put("message", "File size exceeds 50MB limit");
+                error.put("errorCode", "FILE_TOO_LARGE");
+                return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(error);
             }
             
             Document document = documentService.uploadDocument(file, currentUser);
@@ -57,10 +67,18 @@ public class DocumentController {
             
         } catch (IllegalArgumentException e) {
             log.warn("Invalid upload request: {}", e.getMessage());
-            return ResponseEntity.badRequest().build();
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Upload Error");
+            error.put("message", e.getMessage());
+            error.put("errorCode", "UPLOAD_ERROR");
+            return ResponseEntity.badRequest().body(error);
         } catch (Exception e) {
             log.error("Error uploading document", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Upload Failed");
+            error.put("message", "Internal server error during upload");
+            error.put("errorCode", "UPLOAD_ERROR");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
     
@@ -217,6 +235,7 @@ public class DocumentController {
     private DocumentResponseDto convertToResponseDto(Document document) {
         return DocumentResponseDto.builder()
                 .id(document.getId())
+                .originalFilename(document.getOriginalFilename()) // FIXED: Use originalFilename
                 .filename(document.getOriginalFilename())
                 .contentType(document.getContentType())
                 .fileSize(document.getFileSize())
@@ -238,6 +257,7 @@ public class DocumentController {
     private DocumentSummaryDto convertToSummaryDto(Document document) {
         return DocumentSummaryDto.builder()
                 .id(document.getId())
+                .originalFilename(document.getOriginalFilename()) // FIXED: Use originalFilename
                 .filename(document.getOriginalFilename())
                 .fileSize(document.getFileSize())
                 .status(document.getStatus())

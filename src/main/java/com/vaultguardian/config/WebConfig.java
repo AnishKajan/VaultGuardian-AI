@@ -7,11 +7,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.web.reactive.function.client.WebClient;
-
-import java.time.Duration;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
-public class WebConfig {
+public class WebConfig implements WebMvcConfigurer {
     
     @Bean
     public WebClient webClient() {
@@ -21,10 +20,10 @@ public class WebConfig {
     }
     
     @Bean
-    @Primary  // ← IMPORTANT: This ensures Spring uses this ObjectMapper
+    @Primary  // IMPORTANT: This ensures Spring uses this ObjectMapper
     public ObjectMapper objectMapper() {
         ObjectMapper mapper = new ObjectMapper();
-        // ← FIX: Add JSR310 module for LocalDateTime support
+        // FIX: Add JSR310 module for LocalDateTime support
         mapper.registerModule(new JavaTimeModule());
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         return mapper;

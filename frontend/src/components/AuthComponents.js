@@ -2,6 +2,42 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Shield, User, Lock, Eye, EyeOff, Mail, UserCheck } from 'lucide-react';
 import { useSnackbar, SnackbarContainer } from './Snackbar';
 
+// API Configuration
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
+console.log('Auth API_BASE:', API_BASE, 'ENV:', process.env.REACT_APP_API_URL);
+
+// API retry helper for Render wake-up
+const apiCallWithRetry = async (url, options = {}, maxRetries = 3, retryDelay = 2000) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Auth API call attempt ${attempt}/${maxRetries} to:`, url);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      console.error(`Auth API call attempt ${attempt} failed:`, error.message);
+      
+      // If it's the last attempt, throw the error
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Wait before retrying (longer wait for first retry to allow wake-up)
+      const waitTime = attempt === 1 ? 10000 : retryDelay; // 10s first retry, then 2s
+      console.log(`Waiting ${waitTime}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+};
+
 // ========================================
 // AUTH CONTEXT
 // ========================================
@@ -30,7 +66,7 @@ export const AuthProvider = ({ children }) => {
 
   const validateToken = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/auth/me', {
+      const response = await apiCallWithRetry(`${API_BASE}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -61,18 +97,26 @@ export const AuthProvider = ({ children }) => {
       };
     } catch {
       // Fallback to text if JSON parsing fails
-      const errorText = await response.text();
-      return {
-        errorCode: 'UNKNOWN_ERROR',
-        message: errorText || 'An unexpected error occurred',
-        fullError: null
-      };
+      try {
+        const errorText = await response.text();
+        return {
+          errorCode: 'UNKNOWN_ERROR',
+          message: errorText || 'An unexpected error occurred',
+          fullError: null
+        };
+      } catch {
+        return {
+          errorCode: 'NETWORK_ERROR',
+          message: 'Network error. Please check your connection.',
+          fullError: null
+        };
+      }
     }
   };
 
   const login = async (credentials) => {
     try {
-      const response = await fetch('http://localhost:8080/api/auth/login', {
+      const response = await apiCallWithRetry(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,59 +154,55 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Fix for the register function in AuthComponents.js
-// Replace your existing register function with this:
+  const register = async (userData) => {
+    try {
+      const response = await apiCallWithRetry(`${API_BASE}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
 
-const register = async (userData) => {
-  try {
-    const response = await fetch('http://localhost:8080/api/auth/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(userData),
-    });
+      if (!response.ok) {
+        const errorInfo = await parseErrorResponse(response);
+        return { 
+          success: false, 
+          error: errorInfo.message,
+          errorCode: errorInfo.errorCode 
+        };
+      }
 
-    if (!response.ok) {
-      const errorInfo = await parseErrorResponse(response);
+      const data = await response.json();
+      
+      // Registration response doesn't include a token directly
+      // Auto-login after successful registration
+      console.log('Registration successful, data:', data);
+      
+      const loginResult = await login({
+        username: userData.username,
+        password: userData.password
+      });
+      
+      if (loginResult.success) {
+        return { success: true };
+      } else {
+        return {
+          success: false,
+          error: 'Account created but login failed. Please try logging in manually.',
+          errorCode: 'AUTO_LOGIN_FAILED'
+        };
+      }
+      
+    } catch (error) {
+      console.error('Registration error:', error);
       return { 
         success: false, 
-        error: errorInfo.message,
-        errorCode: errorInfo.errorCode 
+        error: 'Network error. Please check your connection.',
+        errorCode: 'NETWORK_ERROR'
       };
     }
-
-    const data = await response.json();
-    
-    // FIX: Registration response doesn't include a token directly
-    // We need to login after successful registration
-    console.log('Registration successful, data:', data);
-    
-    // Auto-login after successful registration
-    const loginResult = await login({
-      username: userData.username,
-      password: userData.password
-    });
-    
-    if (loginResult.success) {
-      return { success: true };
-    } else {
-      return {
-        success: false,
-        error: 'Account created but login failed. Please try logging in manually.',
-        errorCode: 'AUTO_LOGIN_FAILED'
-      };
-    }
-    
-  } catch (error) {
-    console.error('Registration error:', error);
-    return { 
-      success: false, 
-      error: 'Network error. Please check your connection.',
-      errorCode: 'NETWORK_ERROR'
-    };
-  }
-};
+  };
 
   const logout = () => {
     setUser(null);

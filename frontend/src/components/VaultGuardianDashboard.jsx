@@ -3,6 +3,64 @@ import { Upload, Shield, AlertTriangle, FileText, Eye, Download, Trash2, LogOut,
 import { useAuth } from './AuthComponents';
 import { useSnackbar, SnackbarContainer } from './Snackbar';
 
+// API Configuration with retry logic for Render
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
+console.log('API_BASE:', API_BASE, 'ENV:', process.env.REACT_APP_API_URL);
+
+// API retry helper for Render wake-up
+const apiCallWithRetry = async (url, options = {}, maxRetries = 3, retryDelay = 2000) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`API call attempt ${attempt}/${maxRetries} to:`, url);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      console.error(`API call attempt ${attempt} failed:`, error.message);
+      
+      // If it's the last attempt, throw the error
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Wait before retrying (longer wait for first retry to allow wake-up)
+      const waitTime = attempt === 1 ? 10000 : retryDelay; // 10s first retry, then 2s
+      console.log(`Waiting ${waitTime}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+};
+
+// Service Wake-Up Loading Component
+const ServiceWakeUpMessage = ({ isVisible }) => {
+  if (!isVisible) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-md mx-4 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          Starting Secure Service
+        </h3>
+        <p className="text-gray-600 text-sm">
+          Your backend service is waking up from sleep mode. This usually takes 30-60 seconds on the first request.
+        </p>
+        <p className="text-gray-500 text-xs mt-2">
+          This delay only happens on the free tier.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 // Risk Level Guide Component
 const RiskLevelGuide = ({ className = "" }) => {
   const riskLevels = [
@@ -270,6 +328,7 @@ const VaultGuardianDashboard = ({ user, onLogout }) => {
   const [documents, setDocuments] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [isServiceWaking, setIsServiceWaking] = useState(false);
   const [analytics, setAnalytics] = useState({
     totalDocuments: 0,
     quarantinedDocuments: 0,
@@ -281,10 +340,7 @@ const VaultGuardianDashboard = ({ user, onLogout }) => {
   
   const { snackbars, showSuccess, showError, showWarning, removeSnackbar } = useSnackbar();
 
-  // API base URL
-  const API_BASE = 'http://localhost:8080/api';
-
-  // API helper function
+  // API helper function with retry logic
   const apiCall = async (endpoint, options = {}) => {
     const url = `${API_BASE}${endpoint}`;
     const config = {
@@ -296,13 +352,24 @@ const VaultGuardianDashboard = ({ user, onLogout }) => {
       ...options,
     };
 
-    const response = await fetch(url, config);
-    
-    if (!response.ok) {
-      throw new Error(`API call failed: ${response.statusText}`);
+    // Show wake-up message for first requests
+    if (!documents.length && endpoint.includes('/documents')) {
+      setIsServiceWaking(true);
     }
-    
-    return response;
+
+    try {
+      const response = await apiCallWithRetry(url, config);
+      setIsServiceWaking(false);
+      
+      if (!response.ok) {
+        throw new Error(`API call failed: ${response.statusText}`);
+      }
+      
+      return response;
+    } catch (error) {
+      setIsServiceWaking(false);
+      throw error;
+    }
   };
 
   // Parse error response for uploads
@@ -354,7 +421,7 @@ const VaultGuardianDashboard = ({ user, onLogout }) => {
     loadAnalytics();
   }, [token]);
 
-  // NEW: Auto-refresh effect for processing documents
+  // Auto-refresh effect for processing documents
   useEffect(() => {
     const hasProcessingDocs = documents.some(doc => 
       doc.status === 'SCANNING' || doc.status === 'ANALYZING'
@@ -450,7 +517,7 @@ const VaultGuardianDashboard = ({ user, onLogout }) => {
         });
       }, 200);
 
-      const response = await fetch(`${API_BASE}/documents/upload`, {
+      const response = await apiCallWithRetry(`${API_BASE}/documents/upload`, {
         method: 'POST',
         headers: {
           ...(token && { 'Authorization': `Bearer ${token}` }),
@@ -606,6 +673,9 @@ const VaultGuardianDashboard = ({ user, onLogout }) => {
         onRemove={removeSnackbar} 
         position="bottom-left" 
       />
+      
+      {/* Service Wake-Up Modal */}
+      <ServiceWakeUpMessage isVisible={isServiceWaking} />
       
       {/* Security Alert Modal */}
       <SecurityAlertModal 
@@ -792,7 +862,7 @@ const VaultGuardianDashboard = ({ user, onLogout }) => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {/* NEW: Processing indicator for SCANNING/ANALYZING status */}
+                        {/* Processing indicator for SCANNING/ANALYZING status */}
                         {(doc.status === 'SCANNING' || doc.status === 'ANALYZING') ? (
                           <div className="flex items-center space-x-2">
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
@@ -954,7 +1024,7 @@ const VaultGuardianDashboard = ({ user, onLogout }) => {
         {/* Risk Level Guide */}
         <RiskLevelGuide className="mt-8" />
 
-        {/* NEW: Processing Status Notice */}
+        {/* Processing Status Notice */}
         {documents.some(doc => doc.status === 'SCANNING' || doc.status === 'ANALYZING') && (
           <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-center">
