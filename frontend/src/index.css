@@ -1,0 +1,188 @@
+/* Tailwind CSS directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 
+    'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f8fafc;
+  color: #1e293b;
+}
+
+code {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+/* Custom component styles */
+.security-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.document-card {
+  transition: all 0.2s ease-in-out;
+}
+
+.document-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.upload-zone {
+  transition: all 0.3s ease;
+  border: 2px dashed #d1d5db;
+}
+
+.upload-zone:hover {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+.upload-zone.dragover {
+  border-color: #1d4ed8;
+  background-color: #dbeafe;
+}
+
+/* Risk level indicators */
+.risk-low {
+  @apply bg-green-100 text-green-800;
+}
+
+.risk-medium {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.risk-high {
+  @apply bg-red-100 text-red-800;
+}
+
+.risk-critical {
+  @apply bg-red-200 text-red-900;
+}
+
+/* Status indicators */
+.status-approved {
+  @apply bg-green-100 text-green-800;
+}
+
+.status-scanning {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.status-analyzing {
+  @apply bg-purple-100 text-purple-800;
+}
+
+.status-quarantined {
+  @apply bg-red-100 text-red-800;
+}
+
+.status-rejected {
+  @apply bg-red-200 text-red-900;
+}
+
+/* Progress bar animation */
+.progress-bar {
+  animation: progress 0.3s ease-in-out;
+}
+
+@keyframes progress {
+  from {
+    width: 0%;
+  }
+}
+
+/* Security pulse animation */
+.security-pulse {
+  animation: securityPulse 2s infinite;
+}
+
+@keyframes securityPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Fade in animation */
+.fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Loading spinner */
+.spinner {
+  border: 3px solid #f3f4f6;
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Focus styles for accessibility */
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Responsive text sizing */
+@media (max-width: 640px) {
+  .text-responsive {
+    font-size: 0.875rem;
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

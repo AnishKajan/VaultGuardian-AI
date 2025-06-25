@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: vaultguardian-db
+    environment:
+      POSTGRES_DB: vaultguardian
+      POSTGRES_USER: vaultguardian
+      POSTGRES_PASSWORD: secure_password_here
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vaultguardian-network
+    restart: unless-stopped
+
+  # Ollama LLM Service (CPU-only for Mac)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: vaultguardian-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - vaultguardian-network
+    restart: unless-stopped
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+
+  # VaultGuardian Spring Boot Application
+  vaultguardian-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vaultguardian-api
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/vaultguardian
+      - SPRING_DATASOURCE_USERNAME=vaultguardian
+      - SPRING_DATASOURCE_PASSWORD=secure_password_here
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=us-east-2
+      - AWS_DEFAULT_REGION=us-east-2
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-vaultguardian-ai}
+      - JWT_SECRET=${JWT_SECRET:-VaultGuardianSecretKeyThatIsVeryLongAndSecure2024!}
+    depends_on:
+      - postgres
+      - ollama
+    networks:
+      - vaultguardian-network
+    restart: unless-stopped
+    volumes:
+      - /tmp:/tmp
+
+  # React Frontend
+  vaultguardian-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vaultguardian-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8080/api
+    depends_on:
+      - vaultguardian-api
+    networks:
+      - vaultguardian-network
+    restart: unless-stopped
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: vaultguardian-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - vaultguardian-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+networks:
+  vaultguardian-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  ollama_data:
+  redis_data:

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    
+    <!-- Favicons -->
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="16x16" href="%PUBLIC_URL%/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/favicon-32x32.png" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/apple-touch-icon.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/site.webmanifest" />
+
+    <!-- Meta Tags -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="VaultGuardian AI - Intelligent Secure Document Vault with LLM Defense"
+    />
+    
+    <title>VaultGuardian AI - Secure Document Vault</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom styling for security theme -->
+    <style>
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      }
+
+      .security-gradient {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      }
+
+      .document-card:hover {
+        transform: translateY(-2px);
+        transition: transform 0.2s ease-in-out;
+      }
+
+      .upload-zone {
+        transition: all 0.3s ease;
+      }
+
+      .upload-zone:hover {
+        border-color: #3B82F6;
+        background-color: #EFF6FF;
+      }
+
+      .risk-indicator {
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: .7;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run VaultGuardian AI.</noscript>
+    <div id="root"></div>
+  </body>
+</html>

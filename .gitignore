@@ -1,0 +1,42 @@
+# Compiled class files
+*.class
+target/
+*.jar
+*.war
+*.ear
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.eclipse/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+*.env
+
+# Logs
+*.log
+logs/
+
+# Node modules (for React frontend)
+node_modules/
+npm-debug.log*
+
+# Build outputs
+build/
+dist/
+
+# Database
+*.db
+*.sqlite
+
+# AWS
+.aws/
+
+# Docker
+.docker/
