@@ -52,6 +52,26 @@ VaultGuardian AI is a comprehensive secure document management system that combi
 - **Containerization**: Multi-stage Docker builds
 - **CI/CD**: GitHub Actions (optional)
 
+#### **🐞 Known Issues & Fixes**
+- **1.** Token Expiry and Refresh Redirect
+Problem: When the page is refreshed, the app sometimes redirects to the login page even though the user is still logged in.
+
+Cause: The JWT token isn't validated quickly enough before protected routes are loaded, causing unauthorized errors.
+
+Fix (Planned): Implement a loading check in AuthProvider to delay component rendering until token validation is complete.
+
+- **2.** File Upload Sync Across Devices
+Problem: Files uploaded on one device don't appear when logged into the same account from another device.
+
+Cause: The uploaded file’s metadata may be tied to a session-specific token or upload state wasn't committed correctly.
+
+Fix (Planned): Ensure uploaded file metadata is properly stored in Supabase and always fetched based on the authenticated user's ID.
+
+- **3.** Page Refresh Breaks Auth State (401 Errors)
+Problem: Refreshing causes temporary loss of token from localStorage/session, resulting in 401 errors on secure routes.
+
+Fix: Wrap the entire app in an AuthContext that checks and restores token validity before rendering any protected pages.
+
 ## 🚀 Quick Start
 
 ### Option 1: Production Demo (Recommended)
