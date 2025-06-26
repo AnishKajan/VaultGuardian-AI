@@ -1,6 +1,5 @@
 package com.vaultguardian.service;
 
-import io.awspring.cloud.s3.S3Template;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,7 +24,6 @@ import java.util.Map;
 public class S3Service implements StorageService {
     
     private final S3Client s3Client;
-    private final S3Template s3Template;
     
     @Value("${aws.s3.bucket.name:vaultguardian-ai}")
     private String bucketName;
@@ -33,11 +31,25 @@ public class S3Service implements StorageService {
     @Value("${aws.s3.encryption.enabled:true}")
     private boolean encryptionEnabled;
     
-    // StorageService interface implementation
     @Override
     public String uploadFile(byte[] fileContent, String fileName, String contentType) {
         try {
             log.info("Uploading file to S3 bucket: {}, filename: {}", bucketName, fileName);
+            
+            // First check if bucket exists and is accessible
+            try {
+                HeadBucketRequest headBucketRequest = HeadBucketRequest.builder()
+                        .bucket(bucketName)
+                        .build();
+                s3Client.headBucket(headBucketRequest);
+                log.debug("S3 bucket {} is accessible", bucketName);
+            } catch (NoSuchBucketException e) {
+                log.error("S3 bucket does not exist: {}", bucketName);
+                throw new RuntimeException("S3 bucket not found: " + bucketName);
+            } catch (S3Exception e) {
+                log.error("Cannot access S3 bucket {}: {}", bucketName, e.awsErrorDetails().errorMessage());
+                throw new RuntimeException("Cannot access S3 bucket: " + e.awsErrorDetails().errorMessage());
+            }
             
             String key = generateS3Key(fileName);
             
@@ -59,18 +71,21 @@ public class S3Service implements StorageService {
             
             PutObjectRequest request = requestBuilder.build();
             
-            s3Client.putObject(request, RequestBody.fromBytes(fileContent));
+            PutObjectResponse response = s3Client.putObject(request, RequestBody.fromBytes(fileContent));
             
-            log.info("File uploaded successfully to S3: {}", key);
+            log.info("File uploaded successfully to S3: {}, ETag: {}", key, response.eTag());
             return key;
             
+        } catch (S3Exception e) {
+            log.error("AWS S3 Error: {} - {}", e.awsErrorDetails().errorCode(), e.awsErrorDetails().errorMessage());
+            throw new RuntimeException("Failed to upload to S3: " + e.awsErrorDetails().errorMessage());
         } catch (Exception e) {
             log.error("Error uploading file to S3", e);
-            throw new RuntimeException("Failed to upload file to S3", e);
+            throw new RuntimeException("Failed to upload file to S3: " + e.getMessage(), e);
         }
     }
     
-    // MultipartFile overload (keeping your original method)
+    // MultipartFile overload for convenience
     public String uploadFile(MultipartFile file, String filename) {
         try {
             return uploadFile(file.getBytes(), filename, file.getContentType());
@@ -83,14 +98,22 @@ public class S3Service implements StorageService {
     @Override
     public byte[] downloadFile(String s3Key) {
         try {
+            log.debug("Downloading file from S3: {}", s3Key);
+            
             GetObjectRequest request = GetObjectRequest.builder()
                     .bucket(bucketName)
                     .key(s3Key)
                     .build();
             
             ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
-            return response.readAllBytes();
+            byte[] content = response.readAllBytes();
             
+            log.debug("Downloaded {} bytes from S3", content.length);
+            return content;
+            
+        } catch (NoSuchKeyException e) {
+            log.error("File not found in S3: {}", s3Key);
+            throw new RuntimeException("File not found: " + s3Key);
         } catch (Exception e) {
             log.error("Error downloading file from S3: {}", s3Key, e);
             throw new RuntimeException("Failed to download file from S3", e);
@@ -100,6 +123,8 @@ public class S3Service implements StorageService {
     @Override
     public void deleteFile(String s3Key) {
         try {
+            log.debug("Deleting file from S3: {}", s3Key);
+            
             DeleteObjectRequest request = DeleteObjectRequest.builder()
                     .bucket(bucketName)
                     .key(s3Key)
@@ -135,29 +160,25 @@ public class S3Service implements StorageService {
     
     @Override
     public String getFileUrl(String s3Key) {
-        return getFileUrl(s3Key, 24); // Default 24 hours
-    }
-    
-    public String getFileUrl(String s3Key, int expirationHours) {
-        try {
-            // For S3Template pre-signed URL generation
-            return s3Template.createSignedGetURL(bucketName, s3Key, 
-                java.time.Duration.ofHours(expirationHours)).toString();
-            
-        } catch (Exception e) {
-            log.error("Error generating signed URL for S3 file: {}", s3Key, e);
-            throw new RuntimeException("Failed to generate file URL", e);
-        }
+        // For security, we don't generate public URLs
+        // Files should be accessed through the application's download endpoint
+        return String.format("/api/documents/download/%s", s3Key);
     }
     
     private String generateS3Key(String filename) {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
-        return String.format("documents/%s/%s", timestamp, filename);
+        String uniqueId = String.valueOf(System.currentTimeMillis());
+        return String.format("documents/%s/%s_%s", timestamp, uniqueId, filename);
     }
     
+    public String getBucketName() {
+        return bucketName;
+    }
+    
+    // Initialize bucket on startup
     public void initializeBucket() {
         try {
-            log.info("Initializing S3 bucket: {}", bucketName);
+            log.info("Checking S3 bucket: {}", bucketName);
             
             HeadBucketRequest headBucketRequest = HeadBucketRequest.builder()
                     .bucket(bucketName)
@@ -165,12 +186,12 @@ public class S3Service implements StorageService {
             
             try {
                 s3Client.headBucket(headBucketRequest);
-                log.info("✅ S3 bucket '{}' already exists and is accessible", bucketName);
+                log.info("✅ S3 bucket '{}' exists and is accessible", bucketName);
             } catch (NoSuchBucketException e) {
                 log.error("❌ S3 bucket '{}' does not exist. Please create it in AWS console.", bucketName);
                 throw new RuntimeException("S3 bucket does not exist: " + bucketName);
-            } catch (Exception e) {
-                log.error("❌ Error accessing S3 bucket '{}': {}", bucketName, e.getMessage());
+            } catch (S3Exception e) {
+                log.error("❌ Error accessing S3 bucket '{}': {}", bucketName, e.awsErrorDetails().errorMessage());
                 throw new RuntimeException("Failed to access S3 bucket: " + bucketName, e);
             }
             
@@ -178,9 +199,5 @@ public class S3Service implements StorageService {
             log.error("Error initializing S3 bucket", e);
             throw new RuntimeException("Failed to initialize S3 bucket", e);
         }
-    }
-    
-    public String getBucketName() {
-        return bucketName;
     }
 }

@@ -6,6 +6,7 @@ import com.vaultguardian.dto.DocumentSummaryDto;
 import com.vaultguardian.entity.Document;
 import com.vaultguardian.entity.User;
 import com.vaultguardian.service.DocumentService;
+import com.vaultguardian.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
@@ -28,20 +29,26 @@ import java.util.Map;
 @RequestMapping("/api/documents")
 @RequiredArgsConstructor
 @Slf4j
-// REMOVED: @CrossOrigin annotation - let SecurityConfig handle CORS globally
 public class DocumentController {
     
     private final DocumentService documentService;
+    private final StorageService storageService; // Add this for logging
     
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadDocument(
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal User currentUser) {
         
-        log.info("Upload request received from user: {}, file: {}", 
-                currentUser.getUsername(), file.getOriginalFilename());
+        log.info("Upload request received from user: {}, file: {}, size: {} bytes, type: {}", 
+                currentUser.getUsername(), 
+                file.getOriginalFilename(),
+                file.getSize(),
+                file.getContentType());
         
         try {
+            // Log storage provider being used
+            log.info("Storage provider in use: {}", storageService.getClass().getSimpleName());
+            
             // Validate file
             if (file.isEmpty()) {
                 Map<String, Object> error = new HashMap<>();
@@ -60,8 +67,21 @@ public class DocumentController {
                 return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(error);
             }
             
+            // Check file type
+            String contentType = file.getContentType();
+            if (!isAllowedFileType(contentType)) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "Invalid File Type");
+                error.put("message", "File type not allowed: " + contentType);
+                error.put("errorCode", "INVALID_FILE_TYPE");
+                return ResponseEntity.badRequest().body(error);
+            }
+            
             Document document = documentService.uploadDocument(file, currentUser);
             DocumentResponseDto response = convertToResponseDto(document);
+            
+            log.info("Document uploaded successfully: ID={}, Filename={}", 
+                    document.getId(), document.getOriginalFilename());
             
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
             
@@ -73,13 +93,24 @@ public class DocumentController {
             error.put("errorCode", "UPLOAD_ERROR");
             return ResponseEntity.badRequest().body(error);
         } catch (Exception e) {
-            log.error("Error uploading document", e);
+            log.error("Upload failed with exception: ", e);
             Map<String, Object> error = new HashMap<>();
             error.put("error", "Upload Failed");
-            error.put("message", "Internal server error during upload");
+            error.put("message", e.getMessage());
             error.put("errorCode", "UPLOAD_ERROR");
+            error.put("details", e.getClass().getSimpleName());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
+    }
+    
+    private boolean isAllowedFileType(String contentType) {
+        if (contentType == null) return false;
+        return contentType.equals("application/pdf") ||
+               contentType.equals("application/msword") ||
+               contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
+               contentType.equals("application/vnd.ms-excel") ||
+               contentType.equals("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") ||
+               contentType.equals("text/plain");
     }
     
     @GetMapping
@@ -235,7 +266,7 @@ public class DocumentController {
     private DocumentResponseDto convertToResponseDto(Document document) {
         return DocumentResponseDto.builder()
                 .id(document.getId())
-                .originalFilename(document.getOriginalFilename()) // FIXED: Use originalFilename
+                .originalFilename(document.getOriginalFilename())
                 .filename(document.getOriginalFilename())
                 .contentType(document.getContentType())
                 .fileSize(document.getFileSize())
@@ -257,7 +288,7 @@ public class DocumentController {
     private DocumentSummaryDto convertToSummaryDto(Document document) {
         return DocumentSummaryDto.builder()
                 .id(document.getId())
-                .originalFilename(document.getOriginalFilename()) // FIXED: Use originalFilename
+                .originalFilename(document.getOriginalFilename())
                 .filename(document.getOriginalFilename())
                 .fileSize(document.getFileSize())
                 .status(document.getStatus())
