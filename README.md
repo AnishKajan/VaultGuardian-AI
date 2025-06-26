@@ -22,7 +22,7 @@ VaultGuardian AI is a comprehensive secure document management system that combi
 
 ## 🏗️ Production Architecture
 
-![VaultGuardian AI Architecture](./frontend/public/VaultGuardianAI.png)
+![VaultGuardian AI Architecture](./frontend/public/VaultGuardianAI-update.png)
 
 ### Technology Stack
 
