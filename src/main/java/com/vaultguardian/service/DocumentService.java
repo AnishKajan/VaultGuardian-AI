@@ -28,8 +28,8 @@ import java.util.stream.Collectors;
 public class DocumentService {
     
     private final DocumentRepository documentRepository;
-    private final S3Service s3Service;
-    private final DocumentProcessingService documentProcessingService; // NEW: Separate async service
+    private final StorageService storageService; // CHANGED from S3Service
+    private final DocumentProcessingService documentProcessingService;
     private final AuditService auditService;
     
     @Transactional
@@ -47,24 +47,25 @@ public class DocumentService {
                 throw new IllegalArgumentException("Document already exists");
             }
             
-            // FIRST: Upload to S3 to get the S3 key and bucket name
+            // Upload to storage (S3 or Supabase based on configuration)
             String uniqueFilename = generateUniqueFilename(file.getOriginalFilename());
             log.info("📁 Generated unique filename: {}", uniqueFilename);
             
-            String s3Key = s3Service.uploadFile(file, uniqueFilename);
-            String s3BucketName = s3Service.getBucketName();
+            // Use StorageService instead of S3Service
+            String storageKey = storageService.uploadFile(file.getBytes(), uniqueFilename, file.getContentType());
+            String bucketName = getBucketName();
             
-            log.info("☁️ File uploaded to S3 successfully. Bucket: {}, Key: {}", s3BucketName, s3Key);
+            log.info("☁️ File uploaded to storage successfully. Bucket: {}, Key: {}", bucketName, storageKey);
             
-            // THEN: Create document entity with S3 information
+            // Create document entity
             Document document = Document.builder()
                     .originalFilename(file.getOriginalFilename())
                     .filename(uniqueFilename)
                     .contentType(file.getContentType())
                     .fileSize(file.getSize())
                     .sha256Hash(sha256Hash)
-                    .s3Key(s3Key)
-                    .s3Bucket(s3BucketName)
+                    .s3Key(storageKey) // This works for both S3 and Supabase
+                    .s3Bucket(bucketName)
                     .status(Document.DocumentStatus.SCANNING)
                     .riskLevel(Document.RiskLevel.MEDIUM)
                     .uploadedBy(user)
@@ -78,18 +79,9 @@ public class DocumentService {
             document = documentRepository.save(document);
             log.info("💾 Document saved to database with ID: {}", document.getId());
             
-            // 🔧 DEBUG LOGS ADDED:
-            log.error("🚨 DEBUG: About to call DocumentProcessingService.processDocumentAsync() for ID: {}", document.getId());
-            log.error("🚨 DEBUG: DocumentProcessingService instance: {}", documentProcessingService);
-            log.error("🚨 DEBUG: DocumentProcessingService class: {}", documentProcessingService.getClass().getName());
-            
-            // 🔧 FIXED: Use separate service for async processing (this fixes the Spring @Async issue)
+            // Start async processing
             log.info("🚀 Starting async processing for document ID: {}", document.getId());
             documentProcessingService.processDocumentAsync(document.getId());
-            
-            // 🔧 DEBUG LOG ADDED:
-            log.error("🚨 DEBUG: Called DocumentProcessingService.processDocumentAsync() - if you see this, the call worked");
-            
             log.info("✅ Async processing initiated successfully");
             
             auditService.logDocumentUpload(user, document);
@@ -101,6 +93,16 @@ public class DocumentService {
             log.error("❌ Error uploading document", e);
             throw new RuntimeException("Failed to upload document: " + e.getMessage(), e);
         }
+    }
+    
+    private String getBucketName() {
+        // Handle both S3 and Supabase services
+        if (storageService instanceof S3Service) {
+            return ((S3Service) storageService).getBucketName();
+        } else if (storageService instanceof SupabaseStorageService) {
+            return ((SupabaseStorageService) storageService).getBucketName();
+        }
+        return "documents"; // default
     }
     
     private String calculateSHA256(byte[] data) throws NoSuchAlgorithmException {
@@ -152,7 +154,8 @@ public class DocumentService {
         updateLastAccessed(documentId);
         auditService.logDocumentAccess(user, document);
         
-        return s3Service.downloadFile(document.getS3Key());
+        // Use StorageService instead of S3Service
+        return storageService.downloadFile(document.getS3Key());
     }
     
     private boolean canUserAccessDocument(User user, Document document) {
@@ -185,11 +188,11 @@ public class DocumentService {
             throw new SecurityException("Access denied");
         }
         
-        // Delete from S3
+        // Delete from storage
         try {
-            s3Service.deleteFile(document.getS3Key());
+            storageService.deleteFile(document.getS3Key());
         } catch (Exception e) {
-            log.warn("Failed to delete file from S3: {}", e.getMessage());
+            log.warn("Failed to delete file from storage: {}", e.getMessage());
         }
         
         // Delete from database
@@ -212,19 +215,19 @@ public class DocumentService {
         
         long totalDocuments = userDocuments.size();
         long quarantinedDocuments = userDocuments.stream()
-                .mapToLong(doc -> doc.getIsQuarantined() ? 1 : 0)
-                .sum();
+                .filter(doc -> doc.getIsQuarantined() != null && doc.getIsQuarantined())
+                .count();
         
         long highRiskDocuments = userDocuments.stream()
-                .mapToLong(doc -> (doc.getRiskLevel() == Document.RiskLevel.HIGH || 
-                                  doc.getRiskLevel() == Document.RiskLevel.CRITICAL) ? 1 : 0)
-                .sum();
+                .filter(doc -> doc.getRiskLevel() == Document.RiskLevel.HIGH || 
+                              doc.getRiskLevel() == Document.RiskLevel.CRITICAL)
+                .count();
         
         // Get documents uploaded today
         LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
         long documentsToday = userDocuments.stream()
-                .mapToLong(doc -> doc.getCreatedAt().isAfter(startOfDay) ? 1 : 0)
-                .sum();
+                .filter(doc -> doc.getCreatedAt().isAfter(startOfDay))
+                .count();
         
         // Calculate risk distribution
         List<RiskDistribution> riskDistribution = calculateRiskDistribution(userDocuments);

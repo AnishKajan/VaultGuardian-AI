@@ -43,12 +43,12 @@ public class SecurityConfig {
             .authorizeHttpRequests(authz -> authz
                 // Public endpoints - MUST be accessible without authentication
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/test/**").permitAll()  // ADD THIS LINE
+                .requestMatchers("/api/test/**").permitAll()
                 .requestMatchers("/api/health/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/error").permitAll()
                 
-                // Document endpoints - require authentication (FIXED: Allow USER role)
+                // Document endpoints - require authentication (Allow USER role)
                 .requestMatchers("/api/documents/upload").hasAnyRole("USER", "ADMIN", "SECURITY_OFFICER")
                 .requestMatchers("/api/documents/**").hasAnyRole("USER", "ADMIN", "SECURITY_OFFICER")
                 
@@ -76,12 +76,15 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // FIXED: Specific origins instead of wildcard
+        // Add your ACTUAL production URLs here
         configuration.setAllowedOriginPatterns(Arrays.asList(
             "http://localhost:3000",
+            "http://localhost:3001",
             "https://*.vercel.app",
-            "https://vault-guardian-ai.vercel.app", // Replace with your actual Vercel URL
-            "https://vaultguardian-ai.onrender.com"
+            "https://vaultguardian-ai.vercel.app",  // Your actual Vercel URL
+            "https://vaultguardian.vercel.app",      // Alternative URL if you have it
+            "https://vault-guardian-ai.vercel.app",  // Another possible URL
+            "https://vaultguardian-ai.onrender.com" // Your Render backend URL
         ));
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));

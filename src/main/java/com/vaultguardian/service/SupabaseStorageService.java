@@ -2,24 +2,26 @@ package com.vaultguardian.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @Service
-@Profile("production")
 @Slf4j
+@ConditionalOnProperty(name = "storage.provider", havingValue = "supabase", matchIfMissing = true)
 public class SupabaseStorageService implements StorageService {
     
     @Value("${supabase.url}")
@@ -60,7 +62,8 @@ public class SupabaseStorageService implements StorageService {
             String response = webClient.post()
                     .uri(supabaseUrl + "/storage/v1/object/" + bucketName + "/" + storageKey)
                     .header("Authorization", "Bearer " + supabaseKey)
-                    .header("Content-Type", MediaType.MULTIPART_FORM_DATA_VALUE)
+                    .header("apikey", supabaseKey)
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(BodyInserters.fromMultipartData(bodyBuilder))
                     .retrieve()
                     .bodyToMono(String.class)
@@ -78,6 +81,16 @@ public class SupabaseStorageService implements StorageService {
         }
     }
     
+    // MultipartFile overload for compatibility
+    public String uploadFile(MultipartFile file, String filename) {
+        try {
+            return uploadFile(file.getBytes(), filename, file.getContentType());
+        } catch (IOException e) {
+            log.error("Error reading file content", e);
+            throw new RuntimeException("Failed to read file content", e);
+        }
+    }
+    
     @Override
     public byte[] downloadFile(String storageKey) {
         try {
@@ -86,6 +99,7 @@ public class SupabaseStorageService implements StorageService {
             byte[] fileContent = webClient.get()
                     .uri(supabaseUrl + "/storage/v1/object/" + bucketName + "/" + storageKey)
                     .header("Authorization", "Bearer " + supabaseKey)
+                    .header("apikey", supabaseKey)
                     .retrieve()
                     .bodyToMono(byte[].class)
                     .block();
@@ -110,6 +124,7 @@ public class SupabaseStorageService implements StorageService {
             webClient.delete()
                     .uri(supabaseUrl + "/storage/v1/object/" + bucketName + "/" + storageKey)
                     .header("Authorization", "Bearer " + supabaseKey)
+                    .header("apikey", supabaseKey)
                     .retrieve()
                     .bodyToMono(String.class)
                     .block();
@@ -131,6 +146,7 @@ public class SupabaseStorageService implements StorageService {
             webClient.head()
                     .uri(supabaseUrl + "/storage/v1/object/" + bucketName + "/" + storageKey)
                     .header("Authorization", "Bearer " + supabaseKey)
+                    .header("apikey", supabaseKey)
                     .retrieve()
                     .toBodilessEntity()
                     .block();
@@ -156,18 +172,23 @@ public class SupabaseStorageService implements StorageService {
             String signedUrlResponse = webClient.post()
                     .uri(supabaseUrl + "/storage/v1/object/sign/" + bucketName + "/" + storageKey)
                     .header("Authorization", "Bearer " + supabaseKey)
+                    .header("apikey", supabaseKey)
                     .header("Content-Type", "application/json")
                     .bodyValue("{\"expiresIn\": 3600}") // 1 hour expiration
                     .retrieve()
                     .bodyToMono(String.class)
                     .block();
             
-            // Parse the signed URL from response (you might need to adjust based on Supabase response format)
+            // Parse the signed URL from response
             return supabaseUrl + "/storage/v1/object/sign/" + bucketName + "/" + storageKey;
             
         } catch (Exception e) {
             log.error("❌ Error getting file URL from Supabase", e);
             return null;
         }
+    }
+    
+    public String getBucketName() {
+        return bucketName;
     }
 }

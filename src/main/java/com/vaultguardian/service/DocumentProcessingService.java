@@ -17,27 +17,28 @@ import java.util.concurrent.CompletableFuture;
 public class DocumentProcessingService {
     
     private final DocumentRepository documentRepository;
-    private final S3Service s3Service; // Keep as S3Service for now - simpler approach
+    private final StorageService storageService; // CHANGED to StorageService interface
     private final HuggingFaceService huggingFaceService;
     private final MalwareScanService malwareScanService;
     private final PolicyEnforcementService policyEnforcementService;
     private final AuditService auditService;
     private final Tika tika = new Tika();
     
-    // FIXED Constructor - Keep S3Service for now
+    // CHANGED Constructor to use StorageService interface
+    @Autowired
     public DocumentProcessingService(DocumentRepository documentRepository, 
-                                   S3Service s3Service, // Use S3Service directly
+                                   StorageService storageService, // Changed from S3Service
                                    HuggingFaceService huggingFaceService, 
                                    MalwareScanService malwareScanService, 
                                    PolicyEnforcementService policyEnforcementService, 
                                    AuditService auditService) {
         this.documentRepository = documentRepository;
-        this.s3Service = s3Service;
+        this.storageService = storageService;
         this.huggingFaceService = huggingFaceService;
         this.malwareScanService = malwareScanService;
         this.policyEnforcementService = policyEnforcementService;
         this.auditService = auditService;
-        log.info("🎯 DocumentProcessingService CREATED successfully with S3Service");
+        log.info("🎯 DocumentProcessingService CREATED successfully with StorageService");
     }
     
     @Async
@@ -51,7 +52,7 @@ public class DocumentProcessingService {
                     .orElseThrow(() -> new IllegalArgumentException("Document not found"));
             
             log.debug("🔧 DEBUG: Step 2 - Document found: {}", document.getOriginalFilename());
-            log.debug("🔧 DEBUG: Step 2.1 - S3 Key: {}", document.getS3Key());
+            log.debug("🔧 DEBUG: Step 2.1 - Storage Key: {}", document.getS3Key());
             log.debug("🔧 DEBUG: Step 2.2 - Content Type: {}", document.getContentType());
             
             log.debug("🔧 DEBUG: Step 3 - About to update status to SCANNING...");
@@ -59,10 +60,11 @@ public class DocumentProcessingService {
             documentRepository.save(document);
             log.debug("🔧 DEBUG: Step 4 - Status updated successfully");
             
-            log.debug("🔧 DEBUG: Step 5 - About to download from S3...");
-            log.debug("🔧 DEBUG: Step 5.1 - S3Service instance: {}", s3Service);
+            log.debug("🔧 DEBUG: Step 5 - About to download from storage...");
+            log.debug("🔧 DEBUG: Step 5.1 - StorageService instance: {}", storageService.getClass().getSimpleName());
             
-            byte[] fileContent = s3Service.downloadFile(document.getS3Key());
+            // CHANGED to use storageService
+            byte[] fileContent = storageService.downloadFile(document.getS3Key());
             log.debug("🔧 DEBUG: Step 6 - File downloaded successfully, size: {} bytes", fileContent.length);
             
             log.debug("🔧 DEBUG: Step 7 - About to start malware scan...");
@@ -94,7 +96,7 @@ public class DocumentProcessingService {
             log.debug("🔧 DEBUG: Step 13 - About to start LLM analysis...");
             log.debug("🔧 DEBUG: Step 13.1 - HuggingFaceService instance: {}", huggingFaceService);
             
-            // Changed from ollamaService to huggingFaceService
+            // Using HuggingFace service
             LLMAnalysisResult llmResult = huggingFaceService.analyzeDocument(extractedText, document.getOriginalFilename());
             log.debug("🔧 DEBUG: Step 14 - LLM analysis completed");
             log.debug("🔧 DEBUG: Step 14.1 - Risk Level: {}", llmResult.getRiskLevel());

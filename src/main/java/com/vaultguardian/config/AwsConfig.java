@@ -1,37 +1,43 @@
 package com.vaultguardian.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import lombok.extern.slf4j.Slf4j;
 
 @Configuration
-@Slf4j
+@ConditionalOnProperty(name = "storage.provider", havingValue = "s3", matchIfMissing = false)
 public class AwsConfig {
     
-    @Value("${AWS_ACCESS_KEY_ID}")
+    @Value("${aws.access-key-id:}")
     private String accessKeyId;
     
-    @Value("${AWS_SECRET_ACCESS_KEY}")
+    @Value("${aws.secret-access-key:}")
     private String secretAccessKey;
     
-    @Value("${AWS_REGION:us-east-2}")
-    private String awsRegion;
+    @Value("${aws.region:us-east-2}")
+    private String region;
     
     @Bean
-    @Primary
     public S3Client s3Client() {
-        log.info("Configuring S3Client with region: {}", awsRegion);
+        if (accessKeyId.isEmpty() || secretAccessKey.isEmpty()) {
+            // Use default credentials provider (for EC2, ECS, etc.)
+            return S3Client.builder()
+                    .region(Region.of(region))
+                    .build();
+        }
         
+        AwsBasicCredentials awsCreds = AwsBasicCredentials.create(accessKeyId, secretAccessKey);
         return S3Client.builder()
-                .region(Region.of(awsRegion))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKeyId, secretAccessKey)))
+                .region(Region.of(region))
+                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
     }
+    
+    // Remove S3Template bean - it's causing the error
+    // S3Template is not needed if you're using S3Client directly
 }

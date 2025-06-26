@@ -57,23 +57,28 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true); // Start as loading
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    console.log('AuthProvider init - stored token:', storedToken ? 'exists' : 'none');
+    const initAuth = async () => {
+      const storedToken = localStorage.getItem('token');
+      console.log('AuthProvider init - stored token:', storedToken ? 'exists' : 'none');
+      
+      if (storedToken) {
+        setToken(storedToken);
+        // Wait for validation to complete
+        await validateToken(storedToken);
+      } else {
+        console.log('No token found, user needs to login');
+        setLoading(false);
+      }
+    };
     
-    if (storedToken) {
-      setToken(storedToken);
-      validateToken(storedToken);
-    } else {
-      console.log('No token found, user needs to login');
-      setLoading(false);
-    }
+    initAuth();
   }, []); // Only run once on mount
 
   const validateToken = async (tokenToValidate = token) => {
     if (!tokenToValidate) {
       console.log('No token to validate');
       setLoading(false);
-      return;
+      return false;
     }
 
     try {
@@ -91,15 +96,17 @@ export const AuthProvider = ({ children }) => {
         setUser(userData);
         setToken(tokenToValidate);
         localStorage.setItem('token', tokenToValidate);
+        setLoading(false);
+        return true;
       } else {
         console.log('Token validation failed, clearing auth');
         logout();
+        return false;
       }
     } catch (error) {
       console.error('Token validation error:', error);
       logout();
-    } finally {
-      setLoading(false);
+      return false;
     }
   };
 
@@ -162,6 +169,7 @@ export const AuthProvider = ({ children }) => {
         roles: data.roles
       });
       localStorage.setItem('token', data.token);
+      setLoading(false);
       
       return { success: true };
     } catch (error) {
@@ -229,7 +237,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setToken(null);
     localStorage.removeItem('token');
-    setLoading(false); // Make sure loading is false after logout
+    setLoading(false); // Ensure loading is false after logout
   };
 
   const value = {
@@ -238,7 +246,8 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    loading
+    loading,
+    validateToken
   };
 
   return React.createElement(AuthContext.Provider, { value }, children);

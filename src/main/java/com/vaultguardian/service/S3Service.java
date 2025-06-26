@@ -4,9 +4,11 @@ import io.awspring.cloud.s3.S3Template;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
@@ -19,59 +21,66 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class S3Service {
+@ConditionalOnProperty(name = "storage.provider", havingValue = "s3", matchIfMissing = false)
+public class S3Service implements StorageService {
     
     private final S3Client s3Client;
     private final S3Template s3Template;
     
-    // FIXED: Match your actual bucket name
     @Value("${aws.s3.bucket.name:vaultguardian-ai}")
     private String bucketName;
     
     @Value("${aws.s3.encryption.enabled:true}")
     private boolean encryptionEnabled;
     
-    public String uploadFile(MultipartFile file, String filename) {
+    // StorageService interface implementation
+    @Override
+    public String uploadFile(byte[] fileContent, String fileName, String contentType) {
         try {
-            log.info("Uploading file to S3 bucket: {}, filename: {}", bucketName, filename);
+            log.info("Uploading file to S3 bucket: {}, filename: {}", bucketName, fileName);
             
-            String key = generateS3Key(filename);
+            String key = generateS3Key(fileName);
             
             Map<String, String> metadata = new HashMap<>();
-            metadata.put("original-filename", file.getOriginalFilename());
-            metadata.put("content-type", file.getContentType());
+            metadata.put("original-filename", fileName);
+            metadata.put("content-type", contentType);
             metadata.put("upload-timestamp", LocalDateTime.now().toString());
-            metadata.put("file-size", String.valueOf(file.getSize()));
+            metadata.put("file-size", String.valueOf(fileContent.length));
             
             PutObjectRequest.Builder requestBuilder = PutObjectRequest.builder()
                     .bucket(bucketName)
                     .key(key)
-                    .contentType(file.getContentType())
+                    .contentType(contentType)
                     .metadata(metadata);
             
-            // Enable server-side encryption
             if (encryptionEnabled) {
                 requestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
             }
             
             PutObjectRequest request = requestBuilder.build();
             
-            s3Client.putObject(request, 
-                software.amazon.awssdk.core.sync.RequestBody.fromInputStream(
-                    file.getInputStream(), file.getSize()));
+            s3Client.putObject(request, RequestBody.fromBytes(fileContent));
             
             log.info("File uploaded successfully to S3: {}", key);
             return key;
             
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Error uploading file to S3", e);
             throw new RuntimeException("Failed to upload file to S3", e);
-        } catch (Exception e) {
-            log.error("AWS S3 Error uploading file: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to upload file to S3: " + e.getMessage(), e);
         }
     }
     
+    // MultipartFile overload (keeping your original method)
+    public String uploadFile(MultipartFile file, String filename) {
+        try {
+            return uploadFile(file.getBytes(), filename, file.getContentType());
+        } catch (IOException e) {
+            log.error("Error reading file content", e);
+            throw new RuntimeException("Failed to read file content", e);
+        }
+    }
+    
+    @Override
     public byte[] downloadFile(String s3Key) {
         try {
             GetObjectRequest request = GetObjectRequest.builder()
@@ -88,6 +97,7 @@ public class S3Service {
         }
     }
     
+    @Override
     public void deleteFile(String s3Key) {
         try {
             DeleteObjectRequest request = DeleteObjectRequest.builder()
@@ -104,6 +114,7 @@ public class S3Service {
         }
     }
     
+    @Override
     public boolean fileExists(String s3Key) {
         try {
             HeadObjectRequest request = HeadObjectRequest.builder()
@@ -122,14 +133,14 @@ public class S3Service {
         }
     }
     
+    @Override
+    public String getFileUrl(String s3Key) {
+        return getFileUrl(s3Key, 24); // Default 24 hours
+    }
+    
     public String getFileUrl(String s3Key, int expirationHours) {
         try {
-            GetObjectRequest request = GetObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(s3Key)
-                    .build();
-            
-            // Generate pre-signed URL for secure access
+            // For S3Template pre-signed URL generation
             return s3Template.createSignedGetURL(bucketName, s3Key, 
                 java.time.Duration.ofHours(expirationHours)).toString();
             
@@ -148,7 +159,6 @@ public class S3Service {
         try {
             log.info("Initializing S3 bucket: {}", bucketName);
             
-            // Check if bucket exists
             HeadBucketRequest headBucketRequest = HeadBucketRequest.builder()
                     .bucket(bucketName)
                     .build();
@@ -169,9 +179,6 @@ public class S3Service {
             throw new RuntimeException("Failed to initialize S3 bucket", e);
         }
     }
-    
-    // Removed automatic bucket creation and policy setting since bucket exists
-    // These operations require additional permissions
     
     public String getBucketName() {
         return bucketName;
