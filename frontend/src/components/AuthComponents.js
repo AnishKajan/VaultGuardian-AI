@@ -53,34 +53,50 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
-  const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState(null);
+  const [loading, setLoading] = useState(true); // Start as loading
 
   useEffect(() => {
-    if (token) {
-      validateToken();
+    const storedToken = localStorage.getItem('token');
+    console.log('AuthProvider init - stored token:', storedToken ? 'exists' : 'none');
+    
+    if (storedToken) {
+      setToken(storedToken);
+      validateToken(storedToken);
     } else {
+      console.log('No token found, user needs to login');
       setLoading(false);
     }
-  }, [token]);
+  }, []); // Only run once on mount
 
-  const validateToken = async () => {
+  const validateToken = async (tokenToValidate = token) => {
+    if (!tokenToValidate) {
+      console.log('No token to validate');
+      setLoading(false);
+      return;
+    }
+
     try {
+      console.log('Validating token...');
       const response = await apiCallWithRetry(`${API_BASE}/auth/me`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${tokenToValidate}`,
           'Content-Type': 'application/json',
         },
       });
 
       if (response.ok) {
         const userData = await response.json();
+        console.log('Token validation successful, user:', userData.username);
         setUser(userData);
+        setToken(tokenToValidate);
+        localStorage.setItem('token', tokenToValidate);
       } else {
+        console.log('Token validation failed, clearing auth');
         logout();
       }
     } catch (error) {
-      console.error('Token validation failed:', error);
+      console.error('Token validation error:', error);
       logout();
     } finally {
       setLoading(false);
@@ -134,6 +150,9 @@ export const AuthProvider = ({ children }) => {
       }
 
       const data = await response.json();
+      console.log('Login successful, storing token and user data');
+      
+      // Store token and user data
       setToken(data.token);
       setUser({
         username: data.username,
@@ -143,6 +162,7 @@ export const AuthProvider = ({ children }) => {
         roles: data.roles
       });
       localStorage.setItem('token', data.token);
+      
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);
@@ -205,9 +225,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    console.log('Logging out user');
     setUser(null);
     setToken(null);
     localStorage.removeItem('token');
+    setLoading(false); // Make sure loading is false after logout
   };
 
   const value = {
