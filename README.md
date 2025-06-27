@@ -7,11 +7,11 @@ VaultGuardian AI is a comprehensive secure document management system that combi
 ## 🚀 Key Features
 
 ### Core Security Features
-- **🔍 Malware/PII Scanning**: Pre-upload security scanning
+- **🔍 Malware/PII Scanning**: Pre-upload security scanning with pattern detection
 - **🤖 AI Content Analysis**: AI-powered document analysis using Hugging Face
 - **📋 Policy Enforcement**: Automatic policy violation detection
-- **🔐 Encrypted Storage**: Server-side encryption in Supabase Storage
-- **👥 Access Control**: Role-based user permissions
+- **🔐 Encrypted Storage**: Server-side encryption in AWS S3
+- **👥 Access Control**: Role-based user permissions (USER, ADMIN, SECURITY_OFFICER)
 - **📊 Audit Logging**: Comprehensive activity tracking
 
 ### AI Enhancement Features
@@ -22,60 +22,81 @@ VaultGuardian AI is a comprehensive secure document management system that combi
 
 ## 🏗️ Production Architecture
 
-![VaultGuardian AI Architecture](./frontend/public/VaultGuardianAI-update.png)
-
 ### Technology Stack
 
 #### **Frontend**
 - **React 18** with Tailwind CSS
 - **Deployed on**: Vercel
-- **Features**: Real-time updates, responsive design, secure authentication
+- **Features**: Real-time updates, responsive design, JWT authentication
+- **Libraries**: Lucide React (icons), Custom Snackbar notifications
 
 #### **Backend**
 - **Spring Boot 3.2** with Java 17
-- **Deployed on**: Railway/Render
+- **Deployed on**: Render
 - **Security**: JWT authentication, BCrypt encryption, Spring Security
 - **APIs**: RESTful endpoints with comprehensive validation
 
 #### **Database & Storage**
 - **Database**: PostgreSQL (Supabase)
-- **File Storage**: Supabase Storage with encryption
-- **Cache**: Redis for session management
+- **File Storage**: AWS S3 with server-side encryption
+- **Connection Pooling**: HikariCP optimized for cloud deployment
 
 #### **AI & Analytics**
 - **LLM Service**: Hugging Face Inference API
 - **Content Analysis**: Advanced pattern matching + AI
 - **Fallback**: Regex-based analysis for reliability
+- **Text Extraction**: Apache Tika
 
-#### **Development**
-- **Local Development**: Docker & Docker Compose
-- **Containerization**: Multi-stage Docker builds
-- **CI/CD**: GitHub Actions (optional)
+## 🌐 Live Demo
 
-#### **🐞 Known Issues & Fixes**
-- **1.** Token Expiry and Refresh Redirect
-Problem: When the page is refreshed, the app sometimes redirects to the login page even though the user is still logged in.
+**[VaultGuardian AI Demo](https://vaultguardian-ai.vercel.app)**
 
-Cause: The JWT token isn't validated quickly enough before protected routes are loaded, causing unauthorized errors.
+### Demo Credentials
+- **Username**: `admin`
+- **Password**: `admin123`
 
-Fix (Planned): Implement a loading check in AuthProvider to delay component rendering until token validation is complete.
-
-- **2.** File Upload Sync Across Devices
-Problem: Files uploaded on one device don't appear when logged into the same account from another device.
-
-Cause: The uploaded file’s metadata may be tied to a session-specific token or upload state wasn't committed correctly.
-
-Fix (Planned): Ensure uploaded file metadata is properly stored in Supabase and always fetched based on the authenticated user's ID.
-
-- **3.** Page Refresh Breaks Auth State (401 Errors)
-Problem: Refreshing causes temporary loss of token from localStorage/session, resulting in 401 errors on secure routes.
-
-Fix: Wrap the entire app in an AuthContext that checks and restores token validity before rendering any protected pages.
+Or create your own account!
 
 ## 🚀 Quick Start
 
-### Option 1: Production Demo (Recommended)
-Visit the live demo: **[VaultGuardian AI Demo](https://vaultguardian.vercel.app)** *(Coming Soon)*
+### Option 1: Production Deployment (Recommended)
+
+#### Frontend (Vercel)
+1. Fork this repository
+2. Connect to Vercel
+3. Set environment variable:
+   ```env
+   REACT_APP_API_URL=https://your-backend-url.onrender.com/api
+   ```
+4. Deploy
+
+#### Backend (Render)
+1. Connect GitHub repository
+2. Configure environment variables:
+   ```env
+   # Database
+   DATABASE_URL=postgresql://your-supabase-url
+   
+   # Storage
+   STORAGE_PROVIDER=s3
+   AWS_ACCESS_KEY_ID=your-aws-key
+   AWS_SECRET_ACCESS_KEY=your-aws-secret
+   AWS_REGION=us-east-2
+   S3_BUCKET_NAME=your-bucket-name
+   
+   # AI
+   HUGGINGFACE_API_TOKEN=your-hf-token
+   LLM_PROVIDER=huggingface
+   
+   # Security
+   JWT_SECRET=your-secure-jwt-secret
+   
+   # Spring
+   SPRING_PROFILES_ACTIVE=production
+   PORT=8080
+   ```
+3. Build Command: `./mvnw clean install -DskipTests`
+4. Start Command: `java -Dserver.port=$PORT -jar target/vaultguardian-ai.jar`
 
 ### Option 2: Local Development
 
@@ -83,7 +104,8 @@ Visit the live demo: **[VaultGuardian AI Demo](https://vaultguardian.vercel.app)
 - Java 17+
 - Node.js 18+
 - Docker & Docker Compose
-- 4GB+ RAM
+- AWS Account (for S3)
+- Hugging Face Account
 
 #### Setup
 
@@ -93,53 +115,26 @@ git clone https://github.com/your-username/vaultguardian-ai
 cd vaultguardian-ai
 ```
 
-2. **Environment Configuration**
-Create `.env` file:
-```env
-# Hugging Face API
-HUGGINGFACE_API_TOKEN=your_hf_token_here
-LLM_PROVIDER=huggingface
+2. **Backend Setup**
+```bash
+# Create application-local.properties
+cp src/main/resources/application.properties src/main/resources/application-local.properties
 
-# Database (Local Development)
-POSTGRES_PASSWORD=secure_password_here
-
-# Security
-JWT_SECRET=your_very_long_and_secure_jwt_secret_key_here
-
-# AWS S3 (Local Development Only)
-AWS_ACCESS_KEY_ID=your_access_key_here
-AWS_SECRET_ACCESS_KEY=your_secret_key_here
-S3_BUCKET_NAME=vaultguardian-secure-docs
+# Run with local profile
+./mvnw spring-boot:run -Dspring.profiles.active=local
 ```
 
-3. **Start Development Environment**
+3. **Frontend Setup**
 ```bash
-# Start all services
-docker-compose up --build
-
-# In another terminal, start frontend
 cd frontend
 npm install
 npm start
 ```
 
-4. **Access Application**
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8080
-- **Database**: localhost:5432
-
-## 🔧 Configuration
-
-### Hugging Face Setup
-1. Create account at [Hugging Face](https://huggingface.co)
-2. Generate API token in Settings > Access Tokens
-3. Add token to `.env` file
-4. Free tier: 1,000 requests/month
-
-### Database Initialization
-Default admin account:
-- **Username**: `admin`
-- **Password**: `admin123`
+4. **Docker Setup (Alternative)**
+```bash
+docker-compose up --build
+```
 
 ## 📊 API Documentation
 
@@ -157,124 +152,108 @@ GET    /api/documents                     - List user documents
 GET    /api/documents/{id}                - Get document details
 GET    /api/documents/{id}/download       - Download document
 DELETE /api/documents/{id}                - Delete document
-POST   /api/documents/{id}/quarantine     - Quarantine document
+POST   /api/documents/{id}/quarantine     - Quarantine document (Security Officer only)
 ```
 
-### Analytics
+### Analytics & Health
 ```
 GET /api/documents/analytics/dashboard - Dashboard statistics
+GET /api/health                       - Health check endpoint
 ```
 
 ## 🛡️ Security Features
 
 ### Document Analysis Pipeline
 1. **File Upload**: Secure multipart upload with validation
-2. **Malware Scanning**: Pre-processing security checks
-3. **Content Extraction**: Text extraction using Apache Tika
-4. **AI Analysis**: Hugging Face API + regex pattern matching
-5. **Policy Enforcement**: Rule-based security validation
-6. **Risk Assessment**: Automated risk level calculation
-7. **Storage**: Encrypted storage with access logging
+2. **SHA-256 Hashing**: Duplicate detection
+3. **Malware Scanning**: Pattern-based security checks
+4. **Content Extraction**: Text extraction using Apache Tika
+5. **AI Analysis**: Hugging Face API for advanced content analysis
+6. **Policy Enforcement**: Rule-based security validation
+7. **Risk Assessment**: Automated risk level calculation (LOW/MEDIUM/HIGH/CRITICAL)
+8. **Storage**: Encrypted storage in AWS S3
 
 ### Security Measures
 - **JWT Authentication**: Stateless, secure token-based auth
 - **Role-Based Access Control**: USER, ADMIN, SECURITY_OFFICER roles
-- **Rate Limiting**: API abuse prevention
-- **File Type Validation**: Whitelist-based file type checking
+- **CORS Configuration**: Controlled cross-origin access
+- **File Type Validation**: PDF, DOCX, XLSX, TXT only
 - **Size Limits**: 50MB maximum file size
-- **Encryption**: All files encrypted at rest
+- **Encryption**: AES-256 encryption at rest
 - **Audit Logging**: Comprehensive activity tracking
 
-## 🔍 Monitoring & Health Checks
+## 🔧 Configuration
 
-### Health Endpoints
-- **Application**: `GET /actuator/health`
-- **Database**: Automatic connectivity monitoring
-- **AI Service**: Hugging Face API status checking
+### AWS S3 Setup
+1. Create S3 bucket named `vaultguardian-ai`
+2. Enable server-side encryption
+3. Create IAM user with S3 access
+4. Add bucket policy for secure access
 
-### Logging
-```properties
-logging.level.com.vaultguardian=INFO
-logging.level.org.springframework.security=WARN
-```
+### Hugging Face Setup
+1. Create account at [Hugging Face](https://huggingface.co)
+2. Generate API token in Settings > Access Tokens
+3. Add token to environment variables
+4. Free tier: 1,000 requests/month
+
+### Database Schema
+The application uses JPA/Hibernate for automatic schema generation. Key entities:
+- `User`: Authentication and profile data
+- `Document`: File metadata and analysis results
+- `Roles`: USER, ADMIN, SECURITY_OFFICER
+- Audit timestamps on all entities
 
 ## 🚨 Troubleshooting
 
 ### Common Issues
 
-1. **Upload Failures (401 Unauthorized)**
-   - Ensure you're logged in with valid JWT token
-   - Check browser developer tools for authentication errors
+1. **Token Refresh Issues**
+   - Fixed: AuthProvider now properly validates tokens on page refresh
+   - Solution implemented in `AuthComponents.js`
 
-2. **AI Analysis Errors**
-   - Verify Hugging Face API token is valid
-   - Check if free tier quota (1000 requests) is exceeded
-   - System falls back to regex-only analysis
+2. **File Upload Errors**
+   - Ensure `STORAGE_PROVIDER=s3` is set in environment
+   - Verify AWS credentials are correct
+   - Check S3 bucket permissions
 
-3. **Database Connection Issues**
-   ```bash
-   docker-compose logs vaultguardian-db
-   docker-compose restart vaultguardian-db
-   ```
+3. **Render Cold Starts**
+   - First request takes 30-60 seconds
+   - Frontend implements retry mechanism
+   - Consider upgrading to paid tier for always-on
 
-4. **File Upload Size Errors**
-   - Maximum file size: 50MB
-   - Supported formats: PDF, DOCX, XLSX, TXT
-
-## 🚀 Deployment Guide
-
-### Production Deployment
-
-#### Frontend (Vercel)
-1. Connect GitHub repository to Vercel
-2. Set environment variables in Vercel dashboard
-3. Deploy automatically on push to main branch
-
-#### Backend (Railway/Render)
-1. Connect GitHub repository
-2. Configure environment variables:
-   ```env
-   DATABASE_URL=your_supabase_db_url
-   SUPABASE_URL=https://your-project.supabase.co
-   SUPABASE_ANON_KEY=your_supabase_anon_key
-   HUGGINGFACE_API_TOKEN=your_hf_token
-   JWT_SECRET=your_production_jwt_secret
-   ```
-3. Deploy with automatic builds
-
-#### Database (Supabase)
-1. Create new Supabase project
-2. Run `init-db.sql` in SQL editor
-3. Configure connection string
+4. **Database Connection Pool**
+   - Optimized for free-tier limits (5 connections)
+   - HikariCP configuration in properties
 
 ## 📈 Performance & Scaling
 
-### Performance Optimizations
-- **Database**: Connection pooling, indexing
-- **Caching**: Redis for session management
-- **CDN**: Vercel Edge Network for frontend
-- **API**: Rate limiting and request optimization
+### Current Optimizations
+- **Async Processing**: Document analysis runs asynchronously
+- **Connection Pooling**: Optimized for cloud databases
+- **CDN Distribution**: Frontend served via Vercel's edge network
+- **Stateless Design**: Backend can scale horizontally
 
-### Scaling Considerations
-- **Horizontal Scaling**: Stateless backend design
-- **Database**: Read replicas for high load
-- **File Storage**: Distributed storage with Supabase
-- **AI Processing**: Queue-based processing for high volume
+### Production Considerations
+- **Free Tier Limits**:
+  - Render: Spins down after 15 minutes
+  - Supabase: 500MB storage, 2GB bandwidth
+  - Hugging Face: 1,000 API calls/month
+  - AWS S3: Pay-as-you-go
 
 ## 🔐 Security Best Practices
 
-### Development
-- Never commit real credentials to version control
-- Use environment variables for all secrets
-- Regular dependency updates
-- Code security scanning
+### Environment Variables
+- Never commit `.env` files
+- Use strong JWT secrets (minimum 32 characters)
+- Rotate credentials regularly
+- Use different credentials for each environment
 
-### Production
-- HTTPS enforcement
-- CORS configuration
-- Database encryption
+### Production Security
+- HTTPS enforced on all endpoints
+- CORS restricted to specific origins
+- Rate limiting recommended
 - Regular security audits
-- Automated backup procedures
+- Automated backups for database
 
 ## 📝 License
 
@@ -288,10 +267,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+## 🐛 Known Issues
+
+1. **Admin Login**: Use DataInitialization.java to ensure admin user exists
+2. **Empty Document List**: New users see proper empty state
+3. **File Processing Status**: Auto-refreshes every 3 seconds during processing
+
 ## 📞 Support & Contact
 
 - **Issues**: [GitHub Issues](https://github.com/your-username/vaultguardian-ai/issues)
-- **Documentation**: Check troubleshooting section above
+- **Documentation**: See Architecture Guide in `/docs`
 - **Email**: anishkajan2005@gmail.com
 
 ---
@@ -301,7 +286,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - ✅ **Core Features**: Document upload, AI analysis, user management
 - ✅ **Security**: JWT auth, role-based access, encryption
 - ✅ **AI Integration**: Hugging Face API with fallback analysis
-- ✅ **Deployment**: Production-ready cloud architecture
-- 🚧 **Upcoming**: Advanced analytics, mobile app, enterprise features
+- ✅ **Cloud Deployment**: Production-ready on Vercel + Render + AWS S3
+- ✅ **Real-time Updates**: Async processing with status updates
+- 🚧 **Upcoming**: WebSocket notifications, advanced analytics, mobile app
 
 **VaultGuardian AI** - Protecting your documents with intelligent security 🛡️
