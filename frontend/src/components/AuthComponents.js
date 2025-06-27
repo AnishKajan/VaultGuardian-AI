@@ -59,14 +59,32 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initAuth = async () => {
       const storedToken = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
       console.log('AuthProvider init - stored token:', storedToken ? 'exists' : 'none');
+      console.log('AuthProvider init - stored user:', storedUser ? 'exists' : 'none');
       
-      if (storedToken) {
-        setToken(storedToken);
-        // Wait for validation to complete
-        await validateToken(storedToken);
+      if (storedToken && storedUser) {
+        try {
+          const userData = JSON.parse(storedUser);
+          setToken(storedToken);
+          setUser(userData);
+          console.log('Restored user from localStorage:', userData.username);
+          
+          // Validate token in background
+          const isValid = await validateToken(storedToken);
+          if (!isValid) {
+            console.log('Stored token is invalid, clearing auth');
+            logout();
+          } else {
+            console.log('Token validation successful');
+            setLoading(false);
+          }
+        } catch (error) {
+          console.error('Error parsing stored user data:', error);
+          logout();
+        }
       } else {
-        console.log('No token found, user needs to login');
+        console.log('No stored credentials found, user needs to login');
         setLoading(false);
       }
     };
@@ -93,9 +111,20 @@ export const AuthProvider = ({ children }) => {
       if (response.ok) {
         const userData = await response.json();
         console.log('Token validation successful, user:', userData.username);
-        setUser(userData);
+        
+        // Update user data and store in localStorage
+        const userToStore = {
+          username: userData.username,
+          email: userData.email,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          roles: userData.roles
+        };
+        
+        setUser(userToStore);
         setToken(tokenToValidate);
         localStorage.setItem('token', tokenToValidate);
+        localStorage.setItem('user', JSON.stringify(userToStore));
         setLoading(false);
         return true;
       } else {
@@ -160,15 +189,18 @@ export const AuthProvider = ({ children }) => {
       console.log('Login successful, storing token and user data');
       
       // Store token and user data
-      setToken(data.token);
-      setUser({
+      const userToStore = {
         username: data.username,
         email: data.email,
         firstName: data.firstName,
         lastName: data.lastName,
         roles: data.roles
-      });
+      };
+      
+      setToken(data.token);
+      setUser(userToStore);
       localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(userToStore));
       setLoading(false);
       
       return { success: true };
@@ -237,6 +269,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setToken(null);
     localStorage.removeItem('token');
+    localStorage.removeItem('user'); // FIXED: Also remove user data
     setLoading(false); // Ensure loading is false after logout
   };
 
