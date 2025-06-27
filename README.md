@@ -24,6 +24,20 @@ VaultGuardian AI is a comprehensive secure document management system that combi
 
 ### Technology Stack
 
+![VaultGuardian Tech Stack](frontend/public/VaultGuardianAI-update.png)
+
+### UI Display
+Login Page:
+![VaultGuardian Login Page](frontend/public/VaultGuardianAI-LP.png)
+
+Sign Up:
+![VaultGuardian Sign Up Page](frontend/public/VaultGuardianAI-signup.png)
+
+WebPage (with a Medium and Critical upload):
+![VaultGuardian WebPage (pic1)](frontend/public/VaultGuardianAI-WebPage1.png)
+![VaultGuardian WebPage (pic2)](frontend/public/VaultGuardianAI-WebPage2.png)
+![VaultGuardian WebPage (pic3)](frontend/public/VaultGuardianAI-WebPage3.png)
+
 #### **Frontend**
 - **React 18** with Tailwind CSS
 - **Deployed on**: Vercel
@@ -47,19 +61,10 @@ VaultGuardian AI is a comprehensive secure document management system that combi
 - **Fallback**: Regex-based analysis for reliability
 - **Text Extraction**: Apache Tika
 
-## 🌐 Live Demo
-
-**[VaultGuardian AI Demo](https://vaultguardian-ai.vercel.app)**
-
-### Demo Credentials
-- **Username**: `admin`
-- **Password**: `admin123`
-
-Or create your own account!
-
 ## 🚀 Quick Start
 
 ### Option 1: Production Deployment (Recommended)
+Note: Render Free tier is used for backend, this causes a delay when starting the backend 15 minutes after the app has not been in use.
 
 #### Frontend (Vercel)
 1. Fork this repository
