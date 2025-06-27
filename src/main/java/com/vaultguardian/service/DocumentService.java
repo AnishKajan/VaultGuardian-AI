@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 public class DocumentService {
     
     private final DocumentRepository documentRepository;
-    private final StorageService storageService; // CHANGED from S3Service
+    private final StorageService storageService;
     private final DocumentProcessingService documentProcessingService;
     private final AuditService auditService;
     
@@ -97,10 +97,14 @@ public class DocumentService {
     
     private String getBucketName() {
         // Handle both S3 and Supabase services
-        if (storageService instanceof S3Service) {
-            return ((S3Service) storageService).getBucketName();
-        } else if (storageService instanceof SupabaseStorageService) {
-            return ((SupabaseStorageService) storageService).getBucketName();
+        try {
+            if (storageService instanceof S3Service) {
+                return ((S3Service) storageService).getBucketName();
+            } else if (storageService instanceof SupabaseStorageService) {
+                return ((SupabaseStorageService) storageService).getBucketName();
+            }
+        } catch (Exception e) {
+            log.warn("Error getting bucket name from storage service, using default", e);
         }
         return "documents"; // default
     }
@@ -147,10 +151,14 @@ public class DocumentService {
     
     @Transactional
     public void updateLastAccessed(Long documentId) {
-        Document document = documentRepository.findById(documentId)
-                .orElseThrow(() -> new IllegalArgumentException("Document not found"));
-        document.setLastAccessedAt(LocalDateTime.now());
-        documentRepository.save(document);
+        try {
+            Document document = documentRepository.findById(documentId)
+                    .orElseThrow(() -> new IllegalArgumentException("Document not found"));
+            document.setLastAccessedAt(LocalDateTime.now());
+            documentRepository.save(document);
+        } catch (Exception e) {
+            log.error("Error updating last accessed for document: {}", documentId, e);
+        }
     }
     
     public byte[] downloadDocument(Long documentId, User user) {
@@ -170,10 +178,21 @@ public class DocumentService {
     }
     
     private boolean canUserAccessDocument(User user, Document document) {
-        // Basic access control - owner can access, admins can access all
-        return document.getUploadedBy().getId().equals(user.getId()) ||
-               user.getRoles().contains(User.Role.ADMIN) ||
-               user.getRoles().contains(User.Role.SECURITY_OFFICER);
+        try {
+            // Basic access control - owner can access, admins can access all
+            if (user == null || document == null || document.getUploadedBy() == null) {
+                return false;
+            }
+            
+            return document.getUploadedBy().getId().equals(user.getId()) ||
+                   (user.getRoles() != null && (
+                       user.getRoles().contains(User.Role.ADMIN) ||
+                       user.getRoles().contains(User.Role.SECURITY_OFFICER)
+                   ));
+        } catch (Exception e) {
+            log.error("Error checking user access for document: {}", document != null ? document.getId() : "unknown", e);
+            return false;
+        }
     }
     
     @Transactional(readOnly = true)
@@ -195,7 +214,7 @@ public class DocumentService {
         
         // Check if user can delete (only owner or admin)
         if (!document.getUploadedBy().getId().equals(user.getId()) && 
-            !user.getRoles().contains(User.Role.ADMIN)) {
+            (user.getRoles() == null || !user.getRoles().contains(User.Role.ADMIN))) {
             throw new SecurityException("Access denied");
         }
         
@@ -215,8 +234,13 @@ public class DocumentService {
     
     @Transactional(readOnly = true)
     public List<Document> searchDocuments(String query, User user, Pageable pageable) {
-        // Simple search implementation - you can enhance this
-        return documentRepository.searchByUser(user, query, pageable);
+        try {
+            // Simple search implementation - you can enhance this
+            return documentRepository.searchByUser(user, query, pageable);
+        } catch (Exception e) {
+            log.error("Error searching documents for user: {}", user.getUsername(), e);
+            return new ArrayList<>();
+        }
     }
     
     @Transactional(readOnly = true)
@@ -271,7 +295,7 @@ public class DocumentService {
                     .build();
                     
         } catch (Exception e) {
-            log.error("Error calculating analytics for user: {}", user.getUsername(), e);
+            log.error("Error calculating analytics for user: {}", user != null ? user.getUsername() : "null", e);
             return createEmptyAnalytics();
         }
     }
@@ -290,15 +314,20 @@ public class DocumentService {
     
     @Transactional
     public void quarantineDocument(Long documentId, String reason, User user) {
-        Document document = getDocumentById(documentId, user);
-        document.setStatus(Document.DocumentStatus.QUARANTINED);
-        document.setIsQuarantined(true);
-        document.setQuarantineReason(reason);
-        document.setRiskLevel(Document.RiskLevel.CRITICAL);
-        documentRepository.save(document);
-        
-        auditService.logDocumentQuarantine(document, reason);
-        log.warn("Document quarantined - ID: {}, Reason: {}", document.getId(), reason);
+        try {
+            Document document = getDocumentById(documentId, user);
+            document.setStatus(Document.DocumentStatus.QUARANTINED);
+            document.setIsQuarantined(true);
+            document.setQuarantineReason(reason);
+            document.setRiskLevel(Document.RiskLevel.CRITICAL);
+            documentRepository.save(document);
+            
+            auditService.logDocumentQuarantine(document, reason);
+            log.warn("Document quarantined - ID: {}, Reason: {}", document.getId(), reason);
+        } catch (Exception e) {
+            log.error("Error quarantining document: {}", documentId, e);
+            throw new RuntimeException("Failed to quarantine document", e);
+        }
     }
     
     // Helper methods for analytics
