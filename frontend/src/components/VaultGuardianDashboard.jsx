@@ -353,6 +353,7 @@ const VaultGuardianDashboard = ({ user, onLogout }) => {
     // Add Authorization header if token exists
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      console.log('Sending request with token to:', endpoint);
     } else {
       console.warn('No token available for API call to:', endpoint);
     }
