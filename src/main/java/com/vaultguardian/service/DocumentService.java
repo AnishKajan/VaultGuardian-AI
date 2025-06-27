@@ -131,7 +131,18 @@ public class DocumentService {
     
     @Transactional(readOnly = true)
     public List<Document> getUserDocuments(User user) {
-        return documentRepository.findByUploadedByOrderByCreatedAtDesc(user);
+        if (user == null) {
+            log.error("User is null in getUserDocuments");
+            return new ArrayList<>();
+        }
+        
+        try {
+            List<Document> documents = documentRepository.findByUploadedByOrderByCreatedAtDesc(user);
+            return documents != null ? documents : new ArrayList<>();
+        } catch (Exception e) {
+            log.error("Error fetching documents for user: {}", user.getUsername(), e);
+            return new ArrayList<>();
+        }
     }
     
     @Transactional
@@ -210,42 +221,70 @@ public class DocumentService {
     
     @Transactional(readOnly = true)
     public DashboardAnalyticsDto getDashboardAnalytics(User user) {
-        // Get user documents
-        List<Document> userDocuments = documentRepository.findByUploadedByOrderByCreatedAtDesc(user);
+        if (user == null) {
+            log.error("User is null in getDashboardAnalytics");
+            return createEmptyAnalytics();
+        }
         
-        long totalDocuments = userDocuments.size();
-        long quarantinedDocuments = userDocuments.stream()
-                .filter(doc -> doc.getIsQuarantined() != null && doc.getIsQuarantined())
-                .count();
-        
-        long highRiskDocuments = userDocuments.stream()
-                .filter(doc -> doc.getRiskLevel() == Document.RiskLevel.HIGH || 
-                              doc.getRiskLevel() == Document.RiskLevel.CRITICAL)
-                .count();
-        
-        // Get documents uploaded today
-        LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
-        long documentsToday = userDocuments.stream()
-                .filter(doc -> doc.getCreatedAt().isAfter(startOfDay))
-                .count();
-        
-        // Calculate risk distribution
-        List<RiskDistribution> riskDistribution = calculateRiskDistribution(userDocuments);
-        
-        // Calculate category distribution
-        List<CategoryDistribution> categoryDistribution = calculateCategoryDistribution(userDocuments);
-        
-        // Get recent activity
-        List<RecentActivity> recentActivity = getRecentActivity(userDocuments);
-        
+        try {
+            // Get user documents
+            List<Document> userDocuments = documentRepository.findByUploadedByOrderByCreatedAtDesc(user);
+            
+            if (userDocuments == null) {
+                userDocuments = new ArrayList<>();
+            }
+            
+            long totalDocuments = userDocuments.size();
+            long quarantinedDocuments = userDocuments.stream()
+                    .filter(doc -> doc.getIsQuarantined() != null && doc.getIsQuarantined())
+                    .count();
+            
+            long highRiskDocuments = userDocuments.stream()
+                    .filter(doc -> doc.getRiskLevel() != null && 
+                                  (doc.getRiskLevel() == Document.RiskLevel.HIGH || 
+                                   doc.getRiskLevel() == Document.RiskLevel.CRITICAL))
+                    .count();
+            
+            // Get documents uploaded today
+            LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
+            long documentsToday = userDocuments.stream()
+                    .filter(doc -> doc.getCreatedAt() != null && doc.getCreatedAt().isAfter(startOfDay))
+                    .count();
+            
+            // Calculate risk distribution
+            List<RiskDistribution> riskDistribution = calculateRiskDistribution(userDocuments);
+            
+            // Calculate category distribution
+            List<CategoryDistribution> categoryDistribution = calculateCategoryDistribution(userDocuments);
+            
+            // Get recent activity
+            List<RecentActivity> recentActivity = getRecentActivity(userDocuments);
+            
+            return DashboardAnalyticsDto.builder()
+                    .totalDocuments(totalDocuments)
+                    .documentsToday(documentsToday)
+                    .quarantinedDocuments(quarantinedDocuments)
+                    .highRiskDocuments(highRiskDocuments)
+                    .riskDistribution(riskDistribution != null ? riskDistribution : new ArrayList<>())
+                    .categoryDistribution(categoryDistribution != null ? categoryDistribution : new ArrayList<>())
+                    .recentActivity(recentActivity != null ? recentActivity : new ArrayList<>())
+                    .build();
+                    
+        } catch (Exception e) {
+            log.error("Error calculating analytics for user: {}", user.getUsername(), e);
+            return createEmptyAnalytics();
+        }
+    }
+    
+    private DashboardAnalyticsDto createEmptyAnalytics() {
         return DashboardAnalyticsDto.builder()
-                .totalDocuments(totalDocuments)
-                .documentsToday(documentsToday)
-                .quarantinedDocuments(quarantinedDocuments)
-                .highRiskDocuments(highRiskDocuments)
-                .riskDistribution(riskDistribution)
-                .categoryDistribution(categoryDistribution)
-                .recentActivity(recentActivity)
+                .totalDocuments(0L)
+                .documentsToday(0L)
+                .quarantinedDocuments(0L)
+                .highRiskDocuments(0L)
+                .riskDistribution(new ArrayList<>())
+                .categoryDistribution(new ArrayList<>())
+                .recentActivity(new ArrayList<>())
                 .build();
     }
     
@@ -264,56 +303,86 @@ public class DocumentService {
     
     // Helper methods for analytics
     private List<RiskDistribution> calculateRiskDistribution(List<Document> documents) {
-        if (documents.isEmpty()) {
+        if (documents == null || documents.isEmpty()) {
             return new ArrayList<>();
         }
         
-        Map<Document.RiskLevel, Long> riskCounts = documents.stream()
-                .collect(Collectors.groupingBy(Document::getRiskLevel, Collectors.counting()));
-        
-        long total = documents.size();
-        
-        return riskCounts.entrySet().stream()
-                .map(entry -> RiskDistribution.builder()
-                        .riskLevel(entry.getKey())
-                        .count(entry.getValue())
-                        .percentage(total > 0 ? (entry.getValue() * 100.0 / total) : 0.0)
-                        .build())
-                .collect(Collectors.toList());
+        try {
+            Map<Document.RiskLevel, Long> riskCounts = documents.stream()
+                    .filter(doc -> doc.getRiskLevel() != null)
+                    .collect(Collectors.groupingBy(Document::getRiskLevel, Collectors.counting()));
+            
+            long total = documents.size();
+            
+            return riskCounts.entrySet().stream()
+                    .map(entry -> RiskDistribution.builder()
+                            .riskLevel(entry.getKey())
+                            .count(entry.getValue())
+                            .percentage(total > 0 ? (entry.getValue() * 100.0 / total) : 0.0)
+                            .build())
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error calculating risk distribution", e);
+            return new ArrayList<>();
+        }
     }
     
     private List<CategoryDistribution> calculateCategoryDistribution(List<Document> documents) {
-        Map<String, Long> categoryCounts = documents.stream()
-                .filter(doc -> doc.getCategories() != null)
-                .flatMap(doc -> doc.getCategories().stream())
-                .collect(Collectors.groupingBy(category -> category, Collectors.counting()));
-        
-        if (categoryCounts.isEmpty()) {
+        if (documents == null || documents.isEmpty()) {
             return new ArrayList<>();
         }
         
-        long total = categoryCounts.values().stream().mapToLong(Long::longValue).sum();
-        
-        return categoryCounts.entrySet().stream()
-                .map(entry -> CategoryDistribution.builder()
-                        .category(entry.getKey())
-                        .count(entry.getValue())
-                        .percentage(total > 0 ? (entry.getValue() * 100.0 / total) : 0.0)
-                        .build())
-                .collect(Collectors.toList());
+        try {
+            Map<String, Long> categoryCounts = documents.stream()
+                    .filter(doc -> doc.getCategories() != null && !doc.getCategories().isEmpty())
+                    .flatMap(doc -> doc.getCategories().stream())
+                    .filter(category -> category != null && !category.trim().isEmpty())
+                    .collect(Collectors.groupingBy(category -> category, Collectors.counting()));
+            
+            if (categoryCounts.isEmpty()) {
+                return new ArrayList<>();
+            }
+            
+            long total = categoryCounts.values().stream().mapToLong(Long::longValue).sum();
+            
+            return categoryCounts.entrySet().stream()
+                    .map(entry -> CategoryDistribution.builder()
+                            .category(entry.getKey())
+                            .count(entry.getValue())
+                            .percentage(total > 0 ? (entry.getValue() * 100.0 / total) : 0.0)
+                            .build())
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error calculating category distribution", e);
+            return new ArrayList<>();
+        }
     }
     
     private List<RecentActivity> getRecentActivity(List<Document> documents) {
-        return documents.stream()
-                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
-                .limit(10)
-                .map(doc -> RecentActivity.builder()
-                        .action("Uploaded")
-                        .documentName(doc.getOriginalFilename())
-                        .username(doc.getUploadedBy().getUsername())
-                        .timestamp(doc.getCreatedAt())
-                        .riskLevel(doc.getRiskLevel())
-                        .build())
-                .collect(Collectors.toList());
+        if (documents == null || documents.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        try {
+            return documents.stream()
+                    .filter(doc -> doc.getCreatedAt() != null && 
+                                  doc.getOriginalFilename() != null && 
+                                  doc.getUploadedBy() != null &&
+                                  doc.getUploadedBy().getUsername() != null &&
+                                  doc.getRiskLevel() != null)
+                    .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                    .limit(10)
+                    .map(doc -> RecentActivity.builder()
+                            .action("Uploaded")
+                            .documentName(doc.getOriginalFilename())
+                            .username(doc.getUploadedBy().getUsername())
+                            .timestamp(doc.getCreatedAt())
+                            .riskLevel(doc.getRiskLevel())
+                            .build())
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error getting recent activity", e);
+            return new ArrayList<>();
+        }
     }
 }

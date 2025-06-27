@@ -340,16 +340,26 @@ const VaultGuardianDashboard = ({ user, onLogout }) => {
   
   const { snackbars, showSuccess, showError, showWarning, removeSnackbar } = useSnackbar();
 
-  // API helper function with retry logic
+  // FIXED: API helper function with proper JWT token handling
   const apiCall = async (endpoint, options = {}) => {
     const url = `${API_BASE}${endpoint}`;
+    
+    // Ensure token is included in every request
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+    
+    // Add Authorization header if token exists
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    } else {
+      console.warn('No token available for API call to:', endpoint);
+    }
+    
     const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
-        ...options.headers,
-      },
       ...options,
+      headers,
     };
 
     // Show wake-up message for first requests
@@ -362,12 +372,15 @@ const VaultGuardianDashboard = ({ user, onLogout }) => {
       setIsServiceWaking(false);
       
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API call failed: ${response.status} - ${errorText}`);
         throw new Error(`API call failed: ${response.statusText}`);
       }
       
       return response;
     } catch (error) {
       setIsServiceWaking(false);
+      console.error('API call error:', error);
       throw error;
     }
   };
@@ -440,40 +453,53 @@ const VaultGuardianDashboard = ({ user, onLogout }) => {
   const loadDocuments = async () => {
     try {
       const response = await apiCall('/documents');
-      const docs = await response.json();
-      setDocuments(docs);
+      
+      if (response.ok) {
+        const docs = await response.json();
+        setDocuments(Array.isArray(docs) ? docs : []);
+      } else {
+        // Handle non-OK responses
+        const errorData = await response.text();
+        console.error('Document load failed:', response.status, errorData);
+        setDocuments([]);
+      }
     } catch (error) {
       console.error('Failed to load documents:', error);
-      showError('Failed to load documents. Please refresh the page.', 5000);
-      // Use mock data as fallback
-      setDocuments([
-        {
-          id: 1,
-          originalFilename: "financial_report_2024.pdf",
-          status: "APPROVED",
-          riskLevel: "LOW",
-          detectedFlags: [],
-          isQuarantined: false,
-          createdAt: "2024-06-20T10:30:00",
-          fileSize: 2048576
-        }
-      ]);
+      setDocuments([]); // Set empty array instead of showing error for new users
     }
   };
 
   const loadAnalytics = async () => {
     try {
       const response = await apiCall('/documents/analytics/dashboard');
-      const data = await response.json();
-      setAnalytics(data);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAnalytics(data);
+      } else {
+        // Handle non-OK responses
+        const errorData = await response.text();
+        console.error('Analytics load failed:', response.status, errorData);
+        setAnalytics({
+          totalDocuments: 0,
+          quarantinedDocuments: 0,
+          highRiskDocuments: 0,
+          documentsToday: 0,
+          riskDistribution: [],
+          categoryDistribution: [],
+          recentActivity: []
+        });
+      }
     } catch (error) {
       console.error('Failed to load analytics:', error);
-      // Use mock data as fallback
       setAnalytics({
-        totalDocuments: documents.length,
-        quarantinedDocuments: documents.filter(d => d.isQuarantined).length,
-        highRiskDocuments: documents.filter(d => d.riskLevel === 'HIGH' || d.riskLevel === 'CRITICAL').length,
-        riskDistribution: []
+        totalDocuments: 0,
+        quarantinedDocuments: 0,
+        highRiskDocuments: 0,
+        documentsToday: 0,
+        riskDistribution: [],
+        categoryDistribution: [],
+        recentActivity: []
       });
     }
   };
