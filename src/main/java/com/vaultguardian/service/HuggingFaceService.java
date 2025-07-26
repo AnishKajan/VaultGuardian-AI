@@ -62,7 +62,7 @@ public class HuggingFaceService {
             Pattern.compile("\\b\\d{3}-\\d{3}-\\d{4}\\b"), // Phone numbers
             Pattern.compile("\\([0-9]{3}\\)\\s?[0-9]{3}-[0-9]{4}"), // Phone format: (555) 123-4567
             Pattern.compile("(?i)private[_-]?key"),
-            Pattern.compile("(?i)aws[_-]?access[_-]?key"),
+            Pattern.compile("(?i)azure[_-]?storage[_-]?key"),
             Pattern.compile("(?i)connection[_-]?string"),
             Pattern.compile("(?i)database[_-]?url"),
             Pattern.compile("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b"), // Email addresses
@@ -472,7 +472,7 @@ public class HuggingFaceService {
             "Credit Card Number", "Social Security Number", "Hardcoded Password",
             "API Key Exposure", "PII", "Credentials", "Confidential Content",
             "Restricted Content", "Secret Exposure", "Database Credentials",
-            "AWS Credentials", "Private Key"
+            "Azure Credentials", "Private Key"
         );
         
         // Medium-risk flags  

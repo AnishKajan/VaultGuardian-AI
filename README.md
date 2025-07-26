@@ -10,7 +10,7 @@ VaultGuardian AI is a comprehensive secure document management system that combi
 - **🔍 Malware/PII Scanning**: Pre-upload security scanning with pattern detection
 - **🤖 AI Content Analysis**: AI-powered document analysis using Hugging Face
 - **📋 Policy Enforcement**: Automatic policy violation detection
-- **🔐 Encrypted Storage**: Server-side encryption in AWS S3
+- **🔐 Encrypted Storage**: Server-side encryption in Azure Blob
 - **👥 Access Control**: Role-based user permissions (USER, ADMIN, SECURITY_OFFICER)
 - **📊 Audit Logging**: Comprehensive activity tracking
 
@@ -24,7 +24,7 @@ VaultGuardian AI is a comprehensive secure document management system that combi
 
 ### Technology Stack
 
-![VaultGuardian Tech Stack](frontend/public/VaultGuardianAI-update.png)
+![VaultGuardian Tech Stack](frontend/public/VaultGuardianAI-Updated.png)
 
 ### UI Display
 Login Page:
@@ -52,7 +52,7 @@ WebPage (with a Medium and Critical upload):
 
 #### **Database & Storage**
 - **Database**: PostgreSQL (Supabase)
-- **File Storage**: AWS S3 with server-side encryption
+- **File Storage**: Azure BLOB with server-side encryption
 - **Connection Pooling**: HikariCP optimized for cloud deployment
 
 #### **AI & Analytics**
@@ -83,11 +83,11 @@ Note: Render Free tier is used for backend, this causes a delay when starting th
    DATABASE_URL=postgresql://your-supabase-url
    
    # Storage
-   STORAGE_PROVIDER=s3
-   AWS_ACCESS_KEY_ID=your-aws-key
-   AWS_SECRET_ACCESS_KEY=your-aws-secret
-   AWS_REGION=us-east-2
-   S3_BUCKET_NAME=your-bucket-name
+   STORAGE_PROVIDER=azure
+   AZURE_STORAGE_ACCOUNT_NAME=vaultguardian
+   AZURE_STORAGE_ACCOUNT_KEY=your-azure-key
+   AZURE_STORAGE_CONTAINER_NAME=vaultguardian-ai
+   AZURE_STORAGE_ENDPOINT=https://vaultguardian.blob.core.windows.net
    
    # AI
    HUGGINGFACE_API_TOKEN=your-hf-token
@@ -109,7 +109,7 @@ Note: Render Free tier is used for backend, this causes a delay when starting th
 - Java 17+
 - Node.js 18+
 - Docker & Docker Compose
-- AWS Account (for S3)
+- Azure Account (for BLOB)
 - Hugging Face Account
 
 #### Setup
@@ -176,7 +176,7 @@ GET /api/health                       - Health check endpoint
 5. **AI Analysis**: Hugging Face API for advanced content analysis
 6. **Policy Enforcement**: Rule-based security validation
 7. **Risk Assessment**: Automated risk level calculation (LOW/MEDIUM/HIGH/CRITICAL)
-8. **Storage**: Encrypted storage in AWS S3
+8. **Storage**: Encrypted storage in Azure Blob
 
 ### Security Measures
 - **JWT Authentication**: Stateless, secure token-based auth
@@ -189,11 +189,12 @@ GET /api/health                       - Health check endpoint
 
 ## 🔧 Configuration
 
-### AWS S3 Setup
-1. Create S3 bucket named `vaultguardian-ai`
-2. Enable server-side encryption
-3. Create IAM user with S3 access
-4. Add bucket policy for secure access
+### Azure Blob Storage Setup
+1. Create a Storage Account named `vaultguardian` in the Azure Portal
+2. Inside the storage account, create a private Blob Container named `vaultguardian-ai`
+3. Navigate to the "Access keys" section and copy the `Account Name` and `Key1` for authentication
+4. (Optional) Set up a Lifecycle Management rule to automatically delete blobs older than 5 days
+5. (Recommended) Configure a Budget in Azure Cost Management to control spending
 
 ### Hugging Face Setup
 1. Create account at [Hugging Face](https://huggingface.co)
@@ -218,7 +219,7 @@ The application uses JPA/Hibernate for automatic schema generation. Key entities
 
 2. **File Upload Errors**
    - Ensure `STORAGE_PROVIDER=s3` is set in environment
-   - Verify AWS credentials are correct
+   - Verify Azure credentials are correct
    - Check S3 bucket permissions
 
 3. **Render Cold Starts**
@@ -243,7 +244,7 @@ The application uses JPA/Hibernate for automatic schema generation. Key entities
   - Render: Spins down after 15 minutes
   - Supabase: 500MB storage, 2GB bandwidth
   - Hugging Face: 1,000 API calls/month
-  - AWS S3: Pay-as-you-go
+  - Azure Blob: Pay-as-you-go
 
 ## 🔐 Security Best Practices
 
@@ -291,7 +292,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - ✅ **Core Features**: Document upload, AI analysis, user management
 - ✅ **Security**: JWT auth, role-based access, encryption
 - ✅ **AI Integration**: Hugging Face API with fallback analysis
-- ✅ **Cloud Deployment**: Production-ready on Vercel + Render + AWS S3
+- ✅ **Cloud Deployment**: Production-ready on Vercel + Render + Azure Blob
 - ✅ **Real-time Updates**: Async processing with status updates
 - 🚧 **Upcoming**: WebSocket notifications, advanced analytics, mobile app
 

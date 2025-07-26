@@ -1088,7 +1088,7 @@ const VaultGuardianDashboard = ({ user, onLogout }) => {
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-gray-500 space-y-2">
           <p className="font-medium text-gray-700">VaultGuardian AI - Protecting your documents with intelligent security</p>
-          <p>Built with Spring Boot + PostgreSQL + AWS S3 + Ollama LLM + React</p>
+          <p>Built with Spring Boot + PostgreSQL + Azure Blob + Ollama LLM + React</p>
           
           {/* Professional Contact Info */}
           <div className="pt-2 border-t border-gray-200 mt-4">

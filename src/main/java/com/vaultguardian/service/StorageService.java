@@ -2,7 +2,7 @@ package com.vaultguardian.service;
 
 /**
  * Storage service interface for file operations
- * Implementations can use AWS S3, Supabase Storage, or other providers
+ * Implementations can use Azure Blob, Supabase Storage, or other providers
  */
 public interface StorageService {
     

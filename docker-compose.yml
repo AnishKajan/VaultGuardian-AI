@@ -45,12 +45,13 @@ services:
       - SPRING_DATASOURCE_USERNAME=vaultguardian
       - SPRING_DATASOURCE_PASSWORD=secure_password_here
       - OLLAMA_BASE_URL=http://ollama:11434
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=us-east-2
-      - AWS_DEFAULT_REGION=us-east-2
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-vaultguardian-ai}
+      - STORAGE_PROVIDER=azure
+      - AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}
+      - AZURE_STORAGE_ACCOUNT_KEY=${AZURE_STORAGE_ACCOUNT_KEY}
+      - AZURE_STORAGE_CONTAINER_NAME=${AZURE_STORAGE_CONTAINER_NAME:-vaultguardian-ai}
+      - AZURE_STORAGE_ENDPOINT=${AZURE_STORAGE_ENDPOINT}
       - JWT_SECRET=${JWT_SECRET:-VaultGuardianSecretKeyThatIsVeryLongAndSecure2024!}
+      - HUGGINGFACE_API_TOKEN=${HUGGINGFACE_API_TOKEN:-}
     depends_on:
       - postgres
       - ollama

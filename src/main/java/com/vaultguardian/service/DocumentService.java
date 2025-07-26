@@ -47,15 +47,15 @@ public class DocumentService {
                 throw new IllegalArgumentException("Document already exists");
             }
             
-            // Upload to storage (S3 or Supabase based on configuration)
+            // Upload to storage (Azure Blob Storage)
             String uniqueFilename = generateUniqueFilename(file.getOriginalFilename());
             log.info("📁 Generated unique filename: {}", uniqueFilename);
             
-            // Use StorageService instead of S3Service
+            // Use StorageService (Azure Blob Storage)
             String storageKey = storageService.uploadFile(file.getBytes(), uniqueFilename, file.getContentType());
-            String bucketName = getBucketName();
+            String containerName = getContainerName();
             
-            log.info("☁️ File uploaded to storage successfully. Bucket: {}, Key: {}", bucketName, storageKey);
+            log.info("☁️ File uploaded to Azure Blob Storage successfully. Container: {}, Key: {}", containerName, storageKey);
             
             // Create document entity
             Document document = Document.builder()
@@ -64,8 +64,8 @@ public class DocumentService {
                     .contentType(file.getContentType())
                     .fileSize(file.getSize())
                     .sha256Hash(sha256Hash)
-                    .s3Key(storageKey) // This works for both S3 and Supabase
-                    .s3Bucket(bucketName)
+                    .s3Key(storageKey) // Using s3Key field for Azure blob name (backward compatibility)
+                    .s3Bucket(containerName) // Using s3Bucket field for Azure container name
                     .status(Document.DocumentStatus.SCANNING)
                     .riskLevel(Document.RiskLevel.MEDIUM)
                     .uploadedBy(user)
@@ -95,18 +95,16 @@ public class DocumentService {
         }
     }
     
-    private String getBucketName() {
-        // Handle both S3 and Supabase services
+    private String getContainerName() {
+        // Handle Azure Blob Storage service
         try {
-            if (storageService instanceof S3Service) {
-                return ((S3Service) storageService).getBucketName();
-            } else if (storageService instanceof SupabaseStorageService) {
-                return ((SupabaseStorageService) storageService).getBucketName();
+            if (storageService instanceof AzureBlobService) {
+                return ((AzureBlobService) storageService).getContainerName();
             }
         } catch (Exception e) {
-            log.warn("Error getting bucket name from storage service, using default", e);
+            log.warn("Error getting container name from storage service, using default", e);
         }
-        return "documents"; // default
+        return "vaultguardian-ai"; // default container name
     }
     
     private String calculateSHA256(byte[] data) throws NoSuchAlgorithmException {
@@ -173,7 +171,7 @@ public class DocumentService {
         updateLastAccessed(documentId);
         auditService.logDocumentAccess(user, document);
         
-        // Use StorageService instead of S3Service
+        // Use StorageService (Azure Blob Storage)
         return storageService.downloadFile(document.getS3Key());
     }
     
@@ -218,7 +216,7 @@ public class DocumentService {
             throw new SecurityException("Access denied");
         }
         
-        // Delete from storage
+        // Delete from storage (Azure Blob Storage)
         try {
             storageService.deleteFile(document.getS3Key());
         } catch (Exception e) {

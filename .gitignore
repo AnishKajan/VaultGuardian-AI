@@ -35,8 +35,8 @@ dist/
 *.db
 *.sqlite
 
-# AWS
-.aws/
+# Cloud Provider Credentials
+.azure/
 
 # Docker
 .docker/

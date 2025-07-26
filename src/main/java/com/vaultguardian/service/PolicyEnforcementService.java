@@ -67,7 +67,7 @@ public class PolicyEnforcementService {
         "API Key Exposure",
         "Secret Exposure",
         "Database Credentials",
-        "AWS Credentials",
+        "Azure Credentials",
         "Private Key"
     );
     
