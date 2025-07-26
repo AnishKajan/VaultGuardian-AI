@@ -6,8 +6,6 @@ import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobStorageException;
-import com.azure.storage.blob.models.PublicAccessType;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,18 +19,20 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
-@ConditionalOnProperty(name = "storage.provider", havingValue = "azure", matchIfMissing = false)
+@ConditionalOnProperty(name = "storage.provider", havingValue = "azure")
 public class AzureBlobService implements StorageService {
     
     private final BlobServiceClient blobServiceClient;
+    private final String containerName;
     
-    @Value("${azure.storage.container-name:vaultguardian-ai}")
-    private String containerName;
-    
-    @Value("${azure.storage.encryption.enabled:true}")
-    private boolean encryptionEnabled;
+    // Constructor injection - no circular dependency
+    public AzureBlobService(BlobServiceClient blobServiceClient,
+                           @Value("${azure.storage.container-name:vaultguardian-ai}") String containerName) {
+        this.blobServiceClient = blobServiceClient;
+        this.containerName = containerName;
+        log.info("🔵 AzureBlobService initialized with container: {}", containerName);
+    }
     
     @Override
     public String uploadFile(byte[] fileContent, String fileName, String contentType) {
