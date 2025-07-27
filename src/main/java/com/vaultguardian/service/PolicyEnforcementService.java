@@ -75,12 +75,12 @@ public class PolicyEnforcementService {
         log.info("Enforcing security policy for document ID: {}", document.getId());
         
         List<String> violatedPolicies = new ArrayList<>();
-        String action = "ALLOW";
+        String action = "ALLOW"; // Default to ALLOW for Azure storage
         String reason = "";
         String recommendation = "";
         
         try {
-            // 1. Check file size policy
+            // 1. Check file size policy - REJECT only for oversized files
             if (document.getFileSize() > maxFileSize) {
                 violatedPolicies.add("File Size Limit Exceeded");
                 action = "REJECT";
@@ -88,16 +88,7 @@ public class PolicyEnforcementService {
                        document.getFileSize(), maxFileSize);
             }
             
-            // 2. Check risk level policy
-            if (quarantineHighRisk && isHighRiskLevel(document.getRiskLevel())) {
-                violatedPolicies.add("High Risk Content");
-                if (!"REJECT".equals(action)) {
-                    action = "QUARANTINE";
-                    reason = "Document contains high-risk content requiring manual review";
-                }
-            }
-            
-            // 3. Check for blocked categories
+            // 2. Check for blocked categories - REJECT malware/executables
             String blockedCategory = checkBlockedCategories(document.getCategories());
             if (blockedCategory != null) {
                 violatedPolicies.add("Blocked Content Category");
@@ -105,63 +96,79 @@ public class PolicyEnforcementService {
                 reason = "Document category '" + blockedCategory + "' is not allowed";
             }
             
-            // 4. Check PII policy
-            if (blockPII && containsPII(document.getDetectedFlags())) {
-                violatedPolicies.add("PII Detection Policy");
-                if (!"REJECT".equals(action)) {
-                    action = "QUARANTINE";
-                    reason = "Document contains Personally Identifiable Information (PII)";
-                }
-            }
-            
-            // 5. Check credentials policy
+            // 3. Check credentials policy - REJECT exposed credentials
             if (blockCredentials && containsCredentials(document.getDetectedFlags())) {
                 violatedPolicies.add("Credential Exposure Policy");
                 action = "REJECT";
                 reason = "Document contains exposed credentials or secrets";
             }
             
-            // 6. Check maximum risk flags policy
+            // 4. For HIGH/CRITICAL risk - QUARANTINE but STORE in Azure
+            if (quarantineHighRisk && isHighRiskLevel(document.getRiskLevel())) {
+                violatedPolicies.add("High Risk Content");
+                if (!"REJECT".equals(action)) {
+                    action = "QUARANTINE";
+                    reason = "Document contains high-risk content - stored but quarantined for manual review";
+                }
+            }
+            
+            // 5. Check PII policy - QUARANTINE but STORE
+            if (blockPII && containsPII(document.getDetectedFlags())) {
+                violatedPolicies.add("PII Detection Policy");
+                if (!"REJECT".equals(action)) {
+                    action = "QUARANTINE";
+                    reason = "Document contains PII - stored but quarantined for compliance review";
+                }
+            }
+            
+            // 6. Check maximum risk flags policy - QUARANTINE but STORE
             if (document.getDetectedFlags() != null && 
                 document.getDetectedFlags().size() > maxRiskFlags) {
                 violatedPolicies.add("Maximum Risk Flags Exceeded");
                 if (!"REJECT".equals(action)) {
                     action = "QUARANTINE";
-                    reason = String.format("Document has %d risk flags (maximum allowed: %d)", 
-                           document.getDetectedFlags().size(), maxRiskFlags);
+                    reason = String.format("Document has %d risk flags - stored but requires review", 
+                           document.getDetectedFlags().size());
                 }
             }
             
-            // 7. Check for critical risk flags
+            // 7. Check for critical risk flags - QUARANTINE but STORE
             if (containsCriticalFlags(document.getDetectedFlags())) {
                 violatedPolicies.add("Critical Security Risk");
-                action = "REJECT";
-                reason = "Document contains critical security risks";
+                if (!"REJECT".equals(action)) {
+                    action = "QUARANTINE";
+                    reason = "Document contains critical security risks - stored but quarantined";
+                }
             }
             
-            // Set recommendation based on action
+            // IMPORTANT: Documents are STORED in Azure unless explicitly REJECTED
+            // QUARANTINE means: stored in Azure + flagged for manual review
+            // ALLOW means: stored in Azure + immediately accessible
+            // REJECT means: not stored (only for malware, oversized, credentials)
+            
             recommendation = generateRecommendation(action, violatedPolicies);
             
-            boolean isAllowed = "ALLOW".equals(action);
+            // isAllowed = true means file gets stored in Azure
+            boolean isAllowed = !"REJECT".equals(action);
             
-            log.info("Policy enforcement completed for document ID: {}. Action: {}, Violations: {}", 
-                    document.getId(), action, violatedPolicies.size());
+            log.info("Policy enforcement completed for document ID: {}. Action: {}, Stored in Azure: {}", 
+                    document.getId(), action, isAllowed);
             
             return PolicyEnforcementResult.builder()
                     .isAllowed(isAllowed)
-                    .reason(reason.isEmpty() ? "Document passed all policy checks" : reason)
+                    .reason(reason.isEmpty() ? "Document stored in Azure Blob Storage" : reason)
                     .violatedPolicies(violatedPolicies)
                     .action(action)
                     .recommendation(recommendation)
                     .build();
-            
+                    
         } catch (Exception e) {
             log.error("Error during policy enforcement for document ID: " + document.getId(), e);
             return PolicyEnforcementResult.builder()
-                    .isAllowed(false)
-                    .reason("Policy enforcement failed due to technical error")
+                    .isAllowed(true) // Store in Azure even on errors, quarantine for manual review
+                    .reason("Policy enforcement error - document quarantined for manual review")
                     .violatedPolicies(Arrays.asList("System Error"))
-                    .action("REJECT")
+                    .action("QUARANTINE")
                     .recommendation("Manual review required due to system error")
                     .build();
         }
@@ -206,24 +213,21 @@ public class PolicyEnforcementService {
     private String generateRecommendation(String action, List<String> violatedPolicies) {
         switch (action) {
             case "ALLOW":
-                return "Document approved for storage and sharing";
+                return "Document approved and stored in Azure Blob Storage. Safe for access and sharing.";
             case "QUARANTINE":
-                return "Document requires manual security review before release. " +
-                       "Contact security team for assessment.";
+                return "Document stored in Azure Blob Storage but quarantined for security review. " +
+                       "Contact security team before sharing or downloading.";
             case "REJECT":
                 if (violatedPolicies.contains("Credential Exposure Policy")) {
-                    return "Remove all credentials and secrets before re-uploading. " +
+                    return "Document NOT stored. Remove all credentials and secrets before re-uploading. " +
                            "Use environment variables or secure vaults for sensitive data.";
-                } else if (violatedPolicies.contains("PII Detection Policy")) {
-                    return "Remove or redact all personally identifiable information " +
-                           "before re-uploading.";
                 } else if (violatedPolicies.contains("File Size Limit Exceeded")) {
-                    return "Reduce file size or split into smaller files before re-uploading.";
+                    return "Document NOT stored. Reduce file size or split into smaller files before re-uploading.";
                 } else if (violatedPolicies.contains("Blocked Content Category")) {
-                    return "This file type is not permitted. Contact administrator " +
+                    return "Document NOT stored. This file type is not permitted. Contact administrator " +
                            "if business justification exists.";
                 } else {
-                    return "Address security issues identified in the scan before re-uploading.";
+                    return "Document NOT stored. Address security issues identified before re-uploading.";
                 }
             default:
                 return "Contact system administrator for guidance.";

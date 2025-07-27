@@ -48,13 +48,22 @@ public class AzureBlobService implements StorageService {
             // Get blob client
             BlobClient blobClient = containerClient.getBlobClient(blobName);
             
-            // Prepare metadata
+            // Prepare metadata - Azure has strict rules for metadata values
             Map<String, String> metadata = new HashMap<>();
-            metadata.put("original-filename", fileName);
-            metadata.put("content-type", contentType);
-            metadata.put("upload-timestamp", LocalDateTime.now().toString());
-            metadata.put("file-size", String.valueOf(fileContent.length));
-            metadata.put("application", "vaultguardian-ai");
+            
+            // Sanitize filename for Azure metadata (remove special characters)
+            String sanitizedFilename = fileName
+                .replaceAll("[^a-zA-Z0-9._-]", "_")  // Replace invalid chars with underscore
+                .replaceAll("_{2,}", "_")             // Replace multiple underscores with single
+                .trim();
+            
+            // Azure metadata keys cannot have hyphens, use underscore instead
+            metadata.put("originalfilename", sanitizedFilename); // No hyphens in key names
+            metadata.put("contenttype", contentType != null ? 
+                contentType.replaceAll("[^a-zA-Z0-9/.-]", "") : "application/octet-stream");
+            metadata.put("uploadtimestamp", LocalDateTime.now().toString());
+            metadata.put("filesize", String.valueOf(fileContent.length));
+            metadata.put("application", "vaultguardian");
             
             // Upload file with metadata
             blobClient.upload(BinaryData.fromBytes(fileContent), true);

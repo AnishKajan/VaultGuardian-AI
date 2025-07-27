@@ -78,7 +78,7 @@ const RiskLevelGuide = ({ className = "" }) => {
         <div className="text-xs text-gray-600 space-y-1">
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span><strong>Upload:</strong> File uploaded to secure S3 storage</span>
+            <span><strong>Upload:</strong> File uploaded to secure Azure Blob storage</span>
           </div>
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
